@@ -15,6 +15,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignInClient
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 import com.google.android.material.textfield.TextInputEditText
+import android.widget.ImageButton
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.database.FirebaseDatabase
@@ -54,8 +55,7 @@ class LoginActivity : AppCompatActivity() {
         val etEmail = findViewById<TextInputEditText>(R.id.etEmail)
         val etPassword = findViewById<TextInputEditText>(R.id.etPassword)
         val btnLogin = findViewById<Button>(R.id.btnLogin)
-        val btnGoogle = findViewById<Button>(R.id.btnGoogle)
-        val btnFacebook = findViewById<Button>(R.id.btnFacebook)
+        val btnGoogle = findViewById<ImageButton>(R.id.btnGoogle)
         val tvForgetPassword = findViewById<TextView>(R.id.tvForgetPassword)
         val tvGoToSignUp = findViewById<TextView>(R.id.tvGoToSignUp)
 
@@ -87,12 +87,21 @@ class LoginActivity : AppCompatActivity() {
             signInWithGoogle()
         }
 
-        btnFacebook.setOnClickListener {
-            Toast.makeText(this, "Facebook login not implemented yet", Toast.LENGTH_SHORT).show()
-        }
-
         tvForgetPassword.setOnClickListener {
-            Toast.makeText(this, "Forget Password not implemented yet", Toast.LENGTH_SHORT).show()
+            val email = etEmail.text.toString().trim()
+            if (email.isEmpty()) {
+                Toast.makeText(this, "Please enter your email to reset password", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            auth.sendPasswordResetEmail(email)
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        Toast.makeText(this, "Password reset email sent!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this, "Failed to send reset email: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                    }
+                }
         }
 
         tvGoToSignUp.setOnClickListener {
@@ -132,9 +141,13 @@ class LoginActivity : AppCompatActivity() {
                 if (task.isSuccessful) {
                     val user = auth.currentUser
                     if (user != null) {
-                        // Check if it's a new user before saving to database
                         if (task.result?.additionalUserInfo?.isNewUser == true) {
-                            saveUserToDatabase(user)
+                            // Delete the auto-created Firebase user and sign out
+                            user.delete().addOnCompleteListener {
+                                auth.signOut()
+                                mGoogleSignInClient.signOut()
+                                Toast.makeText(this@LoginActivity, "Email not registered. Please sign up first.", Toast.LENGTH_LONG).show()
+                            }
                         } else {
                             goToDashboardActivity()
                         }
@@ -142,20 +155,6 @@ class LoginActivity : AppCompatActivity() {
                 } else {
                     Toast.makeText(this, "Firebase authentication failed", Toast.LENGTH_SHORT).show()
                 }
-            }
-    }
-
-    private fun saveUserToDatabase(user: FirebaseUser) {
-        val database = FirebaseDatabase.getInstance().reference
-        val userMap = mapOf(
-            "fullName" to (user.displayName ?: ""),
-            "email" to (user.email ?: ""),
-            "phoneNumber" to (user.phoneNumber ?: ""),
-            "provider" to "google"
-        )
-        database.child("users").child(user.uid).setValue(userMap)
-            .addOnCompleteListener {
-                goToDashboardActivity()
             }
     }
 

@@ -1,149 +1,136 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true"
-    >
+    android:background="@android:color/white"
+    android:gravity="center"
+    android:orientation="vertical"
+    android:padding="32dp">
 
-    <LinearLayout
+    <!-- Welcome Text -->
+    <TextView
+        android:id="@+id/tvWelcomeBack"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="32dp"
+        android:text="Welcome Back!"
+        android:textColor="@color/color_teal_primary"
+        android:textSize="32sp"
+        android:textStyle="bold" />
+
+    <!-- Email Field -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilEmail"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:background="@drawable/bg_white_rounded"
-        android:layout_margin="16dp"
-        android:padding="24dp"
-        android:gravity="center">
+        android:hint="Email"
+        app:boxCornerRadiusBottomEnd="16dp"
+        app:boxCornerRadiusBottomStart="16dp"
+        app:boxCornerRadiusTopEnd="16dp"
+        app:boxCornerRadiusTopStart="16dp"
+        app:boxStrokeColor="@android:color/black"
+        app:hintTextColor="@android:color/black">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etEmail"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textEmailAddress" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Password Field -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilPassword"
+        style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="Password"
+        app:passwordToggleEnabled="true"
+        app:boxCornerRadiusBottomEnd="16dp"
+        app:boxCornerRadiusBottomStart="16dp"
+        app:boxCornerRadiusTopEnd="16dp"
+        app:boxCornerRadiusTopStart="16dp"
+        app:boxStrokeColor="@android:color/black"
+        app:hintTextColor="@android:color/black">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etPassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textPassword" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Forgot Password Link -->
+    <TextView
+        android:id="@+id/tvForgetPassword"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:layout_marginTop="8dp"
+        android:text="Forgot Password?"
+        android:textColor="@android:color/black"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <!-- Sign In Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnLogin"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_marginTop="32dp"
+        android:text="Sign In"
+        android:textAllCaps="false"
+        android:textSize="16sp"
+        app:backgroundTint="@color/color_teal_primary"
+        app:cornerRadius="30dp" />
+
+    <!-- Or Sign In With Text -->
+    <TextView
+        android:id="@+id/tvOrSignInWith"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:text="Or Sign In With"
+        android:textColor="@android:color/black"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <!-- Google Login Button -->
+    <ImageButton
+        android:id="@+id/btnGoogle"
+        android:layout_width="80dp"
+        android:layout_height="80dp"
+        android:layout_marginTop="16dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:scaleType="fitCenter"
+        android:src="@drawable/googlelogo" />
+
+    <!-- Sign Up Link -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
+        android:orientation="horizontal">
 
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Welcome Back!"
-            android:textSize="28sp"
-            android:textStyle="bold"
+            android:text="Don't Have Account? "
             android:textColor="@android:color/black"
-            android:layout_marginTop="32dp"
-            android:layout_marginBottom="48dp" />
-
-        <!-- Email / Username -->
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            android:hint="Email / Username"
-            app:boxCornerRadiusBottomEnd="16dp"
-            app:boxCornerRadiusBottomStart="16dp"
-            app:boxCornerRadiusTopEnd="16dp"
-            app:boxCornerRadiusTopStart="16dp"
-            app:boxStrokeColor="@color/orange"
-            app:hintTextColor="@color/orange">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etEmail"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textEmailAddress" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Password -->
-        <com.google.android.material.textfield.TextInputLayout
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:hint="Password"
-            app:passwordToggleEnabled="true"
-            app:boxCornerRadiusBottomEnd="16dp"
-            app:boxCornerRadiusBottomStart="16dp"
-            app:boxCornerRadiusTopEnd="16dp"
-            app:boxCornerRadiusTopStart="16dp"
-            app:boxStrokeColor="@color/orange"
-            app:hintTextColor="@color/orange">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/etPassword"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textPassword" />
-        </com.google.android.material.textfield.TextInputLayout>
+            android:textSize="14sp" />
 
         <TextView
-            android:id="@+id/tvForgetPassword"
+            android:id="@+id/tvGoToSignUp"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Forget Password?"
-            android:textSize="12sp"
-            android:textColor="@color/color_text_gray"
-            android:layout_gravity="end"
-            android:layout_marginBottom="24dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnLogin"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="Log In"
-            android:textAllCaps="false"
-            android:textSize="16sp"
-            app:cornerRadius="12dp"
-            app:backgroundTint="@color/orange"
-            android:layout_marginBottom="24dp" />
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Or log In"
-            android:layout_gravity="center_horizontal"
-            android:textColor="@color/color_text_gray"
-            android:textSize="12sp"
-            android:layout_marginBottom="24dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnGoogle"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="LOGIN WITH GOOGLE"
+            android:text="Sign Up"
+            android:textColor="@color/color_teal_primary"
             android:textSize="14sp"
-            app:icon="@android:drawable/ic_menu_edit"
-            app:iconGravity="textStart"
-            app:iconPadding="16dp"
-            app:cornerRadius="12dp"
-            app:backgroundTint="@color/color_google_red"
-            android:layout_marginBottom="12dp" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnFacebook"
-            android:layout_width="match_parent"
-            android:layout_height="56dp"
-            android:text="LOGIN WITH FACEBOOK"
-            android:textSize="14sp"
-            app:icon="@android:drawable/ic_menu_share"
-            app:iconGravity="textStart"
-            app:iconPadding="16dp"
-            app:cornerRadius="12dp"
-            app:backgroundTint="@color/color_facebook_blue"
-            android:layout_marginBottom="32dp" />
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:orientation="horizontal">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Don't have account? "
-                android:textColor="@color/color_text_gray" />
-
-            <TextView
-                android:id="@+id/tvGoToSignUp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Sign Up"
-                android:textStyle="bold"
-                android:textColor="@color/orange" />
-        </LinearLayout>
-
+            android:textStyle="bold" />
     </LinearLayout>
-</ScrollView>
+
+</LinearLayout>
