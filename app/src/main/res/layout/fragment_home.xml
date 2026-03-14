@@ -41,7 +41,7 @@
                     android:textColor="#1A1A2E"
                     android:textSize="14sp"
                     android:textStyle="bold" />
-
+                //textview
                 <TextView
                     android:id="@+id/btnSetBudget"
                     android:layout_width="wrap_content"
