@@ -56,6 +56,7 @@ class AddExpenseActivity : AppCompatActivity() {
 
         btnBack.setOnClickListener { finish() }
 
+        //clear btn
         tvClear.setOnClickListener {
             etAmount.setText("")
             etAmount.requestFocus()
