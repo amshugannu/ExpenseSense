@@ -152,14 +152,21 @@ class SignUpActivity : AppCompatActivity() {
     }
 
     private fun saveUserToDatabase(user: FirebaseUser) {
+        if (user.email == null) {
+            goToMainActivity()
+            return
+        }
+        
+        val username = user.email!!.substringBefore("@")
         val database = FirebaseDatabase.getInstance().reference
+
         val userMap = mapOf(
-            "fullName" to (user.displayName ?: ""),
-            "email" to (user.email ?: ""),
-            "phoneNumber" to (user.phoneNumber ?: ""),
-            "provider" to "google"
+            "name" to (user.displayName ?: ""),
+            "email" to user.email,
+            "phone" to (user.phoneNumber ?: "")
         )
-        database.child("users").child(user.uid).setValue(userMap)
+        
+        database.child("users").child(username).setValue(userMap)
             .addOnSuccessListener {
                 goToMainActivity()
             }

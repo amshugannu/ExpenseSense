@@ -82,9 +82,13 @@ class HomeFragment : Fragment() {
     // ── Firebase sync ─────────────────────────────────────────────────────────
 
     private fun syncWithFirebase() {
-        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null || user.email == null) return
+        
+        val username = user.email!!.substringBefore("@")
+        
         FirebaseDatabase.getInstance()
-            .getReference("users/$userId/transactions")
+            .getReference("users/$username/expenses")
             .addListenerForSingleValueEvent(object : ValueEventListener {
                 override fun onDataChange(snapshot: DataSnapshot) {
                     if (!isAdded || context == null) return
@@ -95,18 +99,35 @@ class HomeFragment : Fragment() {
                         val localMap = dao.getAllTransactions().associateBy { it.firebaseId }
                         var hasNew = false
 
-                        for (child in snapshot.children) {
-                            val fid = child.key
-                            if (fid != null && !localMap.containsKey(fid)) {
-                                val record = Transaction(
-                                    title      = child.child("title").getValue(String::class.java) ?: "",
-                                    amount     = child.child("amount").getValue(Double::class.java) ?: 0.0,
-                                    category   = child.child("category").getValue(String::class.java) ?: "Other",
-                                    timestamp  = child.child("timestamp").getValue(Long::class.java) ?: 0L,
-                                    firebaseId = fid
-                                )
-                                dao.insertTransaction(record)
-                                hasNew = true
+                        // snapshot is `expenses`. Children are Categories (Food, Entertainment, etc)
+                        for (categorySnapshot in snapshot.children) {
+                            val categoryName = categorySnapshot.key ?: "Other"
+                            
+                            // children of category are the actual expense nodes (Title-Timestamp keys)
+                            for (expenseSnapshot in categorySnapshot.children) {
+                                val uniqueTitleKey = expenseSnapshot.key
+                                if (uniqueTitleKey != null && !localMap.containsKey(uniqueTitleKey)) {
+                                    
+                                    // Extract the clean title (everything before the last '-')
+                                    val cleanTitle = if (uniqueTitleKey.contains("-")) {
+                                        uniqueTitleKey.substringBeforeLast("-")
+                                    } else {
+                                        uniqueTitleKey
+                                    }
+                                    
+                                    val timestamp = expenseSnapshot.child("timestamp").getValue(Long::class.java) ?: 0L
+                                    val amount = expenseSnapshot.child("amount").getValue(Double::class.java) ?: 0.0
+                                    
+                                    val record = Transaction(
+                                        title      = cleanTitle,
+                                        amount     = amount,
+                                        category   = categoryName,
+                                        timestamp  = timestamp,
+                                        firebaseId = uniqueTitleKey // Store unique key for deletion
+                                    )
+                                    dao.insertTransaction(record)
+                                    hasNew = true
+                                }
                             }
                         }
                         if (hasNew && isAdded) loadFromRoom()
@@ -120,11 +141,15 @@ class HomeFragment : Fragment() {
     // ── Delete ────────────────────────────────────────────────────────────────
 
     private fun deleteTransaction(record: Transaction) {
-        // Remove from Firebase
-        val userId = FirebaseAuth.getInstance().currentUser?.uid
-        if (userId != null && record.firebaseId != null) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null || user.email == null) return
+        
+        val username = user.email!!.substringBefore("@")
+        
+        val fid = record.firebaseId
+        if (!fid.isNullOrEmpty()) {
             FirebaseDatabase.getInstance()
-                .getReference("users/$userId/transactions/${record.firebaseId}")
+                .getReference("users/$username/expenses/${record.category}/$fid")
                 .removeValue()
         }
         // Remove from Room then refresh

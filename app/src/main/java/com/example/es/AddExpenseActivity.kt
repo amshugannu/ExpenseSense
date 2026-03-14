@@ -2,11 +2,17 @@ package com.example.es
 
 import android.app.DatePickerDialog
 import android.os.Bundle
+import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
+import com.google.ai.client.generativeai.GenerativeModel
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -59,6 +65,73 @@ class AddExpenseActivity : AppCompatActivity() {
         tvDate.setOnClickListener    { showDatePicker() }
 
         btnAddExpense.setOnClickListener { submitExpense() }
+
+        // Setup AI Auto-categorization
+        etName.setOnFocusChangeListener { _, hasFocus ->
+            if (!hasFocus) {
+                val expenseDesc = etName.text.toString().trim()
+                if (expenseDesc.isNotEmpty()) {
+                    autoCategorizeExpense(expenseDesc, categories)
+                }
+            }
+        }
+    }
+
+    private fun autoCategorizeExpense(description: String, categories: Array<String>) {
+        val apiKey = BuildConfig.GEMINI_API_KEY
+        if (apiKey == "PLACE_YOUR_API_KEY_HERE" || apiKey.isBlank()) {
+            return // Don't try to call if key isn't set yet
+        }
+
+        Toast.makeText(this, "✨ AI organizing...", Toast.LENGTH_SHORT).show()
+
+        lifecycleScope.launch(Dispatchers.IO) {
+            try {
+                val generativeModel = GenerativeModel(
+                    modelName = "gemini-1.5-flash",
+                    apiKey = apiKey
+                )
+
+                val prompt = """
+                    You are exactly a categorization engine. You must output NOTHING except a single category name from the strict list provided.
+                    Do not write any introductory text, no explanations, no punctuation, and no JSON. Just the category word exactly as it appears in the list.
+
+                    List of allowed categories:
+                    Games, Movies, Sports, Dinner, Groceries, Drinks, Household supplies, Maintainance, Rent, Medical, Taxes, Insurances, Gifts, Travel, Fuel, Internet, Gas, other
+
+                    Input description to categorize: "$description"
+                """.trimIndent()
+
+                val response = generativeModel.generateContent(prompt)
+                val rawResponse = response.text ?: ""
+                
+                // Clean the response from any accidental punctuation or whitespace
+                val aiCategory = rawResponse.replace(Regex("[^a-zA-Z ]"), "").trim()
+
+                withContext(Dispatchers.Main) {
+                    // For debugging, show exactly what Gemini returned
+                    // Toast.makeText(this@AddExpenseActivity, "Gemini said: [$aiCategory]", Toast.LENGTH_SHORT).show()
+                    
+                    val index = categories.indexOfFirst { it.equals(aiCategory, ignoreCase = true) }
+                    if (index >= 0) {
+                        spinnerCategory.setSelection(index)
+                        Toast.makeText(this@AddExpenseActivity, "✨ Auto-selected: $aiCategory", Toast.LENGTH_SHORT).show()
+                    } else {
+                        // Fallback logic as requested
+                        val fallbackIndex = categories.indexOf("Household supplies")
+                        if (fallbackIndex >= 0) spinnerCategory.setSelection(fallbackIndex)
+                        Toast.makeText(this@AddExpenseActivity, "Gemini returned unknown category: '$aiCategory'", Toast.LENGTH_LONG).show()
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@AddExpenseActivity, "AI Error: ${e.message}", Toast.LENGTH_LONG).show()
+                    val index = categories.indexOf("Household supplies")
+                    if (index >= 0) spinnerCategory.setSelection(index)
+                }
+            }
+        }
     }
 
     private fun showDatePicker() {
@@ -100,30 +173,40 @@ class AddExpenseActivity : AppCompatActivity() {
             return
         }
 
-        val userId = FirebaseAuth.getInstance().currentUser?.uid
-        if (userId == null) {
-            Toast.makeText(this, "Not logged in", Toast.LENGTH_SHORT).show()
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null || user.email == null) {
+            Toast.makeText(this, "Not logged in or missing email", Toast.LENGTH_SHORT).show()
             return
         }
 
+        val username  = user.email!!.substringBefore("@")
         val category  = spinnerCategory.selectedItem.toString()
         val timestamp = calendar.timeInMillis   // use selected date millis
 
-        val databaseRef = FirebaseDatabase.getInstance()
-            .getReference("users/$userId/transactions")
-        val newRef     = databaseRef.push()
-        val firebaseId = newRef.key
+        // To prevent exact titles (like "Pizza") from overwriting each other in Firebase, 
+        // we append the timestamp to the node key.
+        val uniqueTitleKey = "$name-$timestamp"
 
+        val databaseRef = FirebaseDatabase.getInstance()
+            .getReference("users/$username/expenses/$category/$uniqueTitleKey")
+        
+        // This is exactly what is saved under the Title node in Firebase
+        val firebaseExpenseData = mapOf(
+            "timestamp" to timestamp,
+            "amount" to amount
+        )
+
+        // The local Room DB object (keeps all fields for UI rendering)
         val transaction = Transaction(
-            title      = name,
+            title      = name,    // The clean title for the UI
             amount     = amount,
             category   = category,
             timestamp  = timestamp,
-            firebaseId = firebaseId
+            firebaseId = uniqueTitleKey // We store the unique key so we can delete it later
         )
 
         // Save to Firebase with listeners to catch errors
-        newRef.setValue(transaction)
+        databaseRef.setValue(firebaseExpenseData)
             .addOnSuccessListener {
                 // Save to Room on background thread, then close activity
                 Thread {
