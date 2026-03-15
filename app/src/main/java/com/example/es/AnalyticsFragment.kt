@@ -161,8 +161,11 @@ class AnalyticsFragment : Fragment() {
             topSpendingAdapter.updateData(it)
         }
 
+        viewModel.chartData.observe(viewLifecycleOwner) { (entries, labels) ->
+            updateLineChart(entries, labels)
+        }
+
         viewModel.filteredTransactions.observe(viewLifecycleOwner) { transactions ->
-            updateLineChart(transactions)
             updatePieCharts(transactions)
         }
 
@@ -171,15 +174,20 @@ class AnalyticsFragment : Fragment() {
         }
     }
 
-    private fun updateLineChart(transactions: List<Transaction>) {
-        val entries = mutableListOf<Entry>()
-        transactions.sortedBy { it.timestamp }.forEachIndexed { index, transaction ->
-            entries.add(Entry(index.toFloat(), transaction.amount.toFloat()))
-        }
-
+    private fun updateLineChart(entries: List<Entry>, labels: List<String>) {
         if (entries.isEmpty()) {
             binding.lineChart.clear()
             return
+        }
+
+        binding.lineChart.xAxis.apply {
+            valueFormatter = com.github.mikephil.charting.formatter.IndexAxisValueFormatter(labels)
+            granularity = 1f
+            // Increase label count for better detail
+            val labelCount = if (labels.size > 20) 12 else labels.size
+            setLabelCount(labelCount, false)
+            // Rotate labels slightly if they are dense
+            labelRotationAngle = if (labels.size > 15) -15f else 0f
         }
 
         val dataSet = LineDataSet(entries, "Expenses").apply {

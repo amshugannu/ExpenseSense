@@ -21,5 +21,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "ES"
-include(":app")
- 
+include(":app")
