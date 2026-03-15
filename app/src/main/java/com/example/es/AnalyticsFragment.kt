@@ -237,18 +237,46 @@ class AnalyticsFragment : Fragment() {
 
     private fun updateHeatmapUI(intensities: List<Float>) {
         binding.heatmapGrid.removeAllViews()
-        val cellSize = (resources.displayMetrics.widthPixels - 120) / 7
         
-        intensities.forEach { intensity ->
-            val cell = View(requireContext()).apply {
-                layoutParams = ViewGroup.LayoutParams(cellSize, cellSize)
-                val params = layoutParams as? ViewGroup.MarginLayoutParams ?: ViewGroup.MarginLayoutParams(cellSize, cellSize)
-                params.setMargins(4, 4, 4, 4)
-                
-                val alpha = (intensity * 255).toInt().coerceAtLeast(20)
-                setBackgroundColor(Color.argb(alpha, 42, 191, 191))
+        // Calculate the first day of the month offset
+        val tempCal = selectedCalendar.clone() as Calendar
+        tempCal.set(Calendar.DAY_OF_MONTH, 1)
+        val firstDayOfWeek = tempCal.get(Calendar.DAY_OF_WEEK) // 1=Sun, 2=Mon...
+        val offset = firstDayOfWeek - 1 // 0=Sun, 1=Mon...
+
+        val screenWidth = resources.displayMetrics.widthPixels
+        val padding = 40 // Total padding from parent (20dp * 2)
+        val cellSize = (screenWidth - (padding * resources.displayMetrics.density).toInt()) / 7
+        
+        // Add empty offset cells
+        for (i in 0 until offset) {
+            val emptyView = View(requireContext())
+            emptyView.layoutParams = ViewGroup.LayoutParams(cellSize, cellSize)
+            binding.heatmapGrid.addView(emptyView)
+        }
+
+        // Add date cells
+        intensities.forEachIndexed { index, intensity ->
+            val dayOfMonth = index + 1
+            val cellBinding = com.example.es.databinding.ItemHeatmapCellBinding.inflate(
+                LayoutInflater.from(requireContext()), binding.heatmapGrid, false
+            )
+            
+            cellBinding.root.layoutParams = ViewGroup.LayoutParams(cellSize, cellSize)
+            cellBinding.tvDate.text = dayOfMonth.toString()
+            
+            val alpha = (intensity * 255).toInt().coerceAtMost(255).coerceAtLeast(0)
+            val overlayAlpha = if (intensity > 0) alpha.coerceAtLeast(30) else 0
+            cellBinding.colorOverlay.setBackgroundColor(Color.argb(overlayAlpha, 42, 191, 191))
+            
+            // Adjust text color based on background intensity for readability
+            if (intensity > 0.6) {
+                cellBinding.tvDate.setTextColor(Color.WHITE)
+            } else {
+                cellBinding.tvDate.setTextColor(Color.parseColor("#1A1A2E"))
             }
-            binding.heatmapGrid.addView(cell)
+
+            binding.heatmapGrid.addView(cellBinding.root)
         }
     }
 
