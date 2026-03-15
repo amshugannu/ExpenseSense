@@ -6,7 +6,6 @@ import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import com.google.ai.client.generativeai.GenerativeModel
 import com.google.android.material.button.MaterialButton
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.FirebaseDatabase
@@ -85,73 +84,21 @@ class AddExpenseActivity : AppCompatActivity() {
 
         btnAddExpense.setOnClickListener { submitExpense() }
 
-        // Setup AI Auto-categorization
+        // Setup Keyword-based Auto-categorization
         etName.setOnFocusChangeListener { _, hasFocus ->
             if (!hasFocus) {
-                val expenseDesc = etName.text.toString().trim()
-                if (expenseDesc.isNotEmpty()) {
-                    autoCategorizeExpense(expenseDesc, categories)
-                }
-            }
-        }
-    }
-
-    private fun autoCategorizeExpense(description: String, categories: Array<String>) {
-        val apiKey = BuildConfig.GEMINI_API_KEY
-        if (apiKey == "PLACE_YOUR_API_KEY_HERE" || apiKey.isBlank()) {
-            return // Don't try to call if key isn't set yet
-        }
-
-        Toast.makeText(this, "✨ AI organizing...", Toast.LENGTH_SHORT).show()
-
-        lifecycleScope.launch(Dispatchers.IO) {
-            try {
-                val generativeModel = GenerativeModel(
-                    modelName = "gemini-1.5-flash",
-                    apiKey = apiKey
-                )
-
-                val prompt = """
-                    You are exactly a categorization engine. You must output NOTHING except a single category name from the strict list provided.
-                    Do not write any introductory text, no explanations, no punctuation, and no JSON. Just the category word exactly as it appears in the list.
-
-                    List of allowed categories:
-                    Games, Movies, Sports, Dinner, Groceries, Drinks, Household supplies, Maintainance, Rent, Medical, Taxes, Insurances, Gifts, Travel, Fuel, Internet, Gas, other
-
-                    Input description to categorize: "$description"
-                """.trimIndent()
-
-                val response = generativeModel.generateContent(prompt)
-                val rawResponse = response.text ?: ""
-                
-                // Clean the response from any accidental punctuation or whitespace
-                val aiCategory = rawResponse.replace(Regex("[^a-zA-Z ]"), "").trim()
-
-                withContext(Dispatchers.Main) {
-                    // For debugging, show exactly what Gemini returned
-                    // Toast.makeText(this@AddExpenseActivity, "Gemini said: [$aiCategory]", Toast.LENGTH_SHORT).show()
-                    
-                    val index = categories.indexOfFirst { it.equals(aiCategory, ignoreCase = true) }
+                val expenseName = etName.text.toString().trim()
+                if (expenseName.isNotEmpty()) {
+                    val detectedCategory = CategoryHelper.detectCategory(expenseName)
+                    val index = categories.indexOfFirst { it.equals(detectedCategory, ignoreCase = true) }
                     if (index >= 0) {
                         spinnerCategory.setSelection(index)
-                        Toast.makeText(this@AddExpenseActivity, "✨ Auto-selected: $aiCategory", Toast.LENGTH_SHORT).show()
-                    } else {
-                        // Fallback logic as requested
-                        val fallbackIndex = categories.indexOf("Household supplies")
-                        if (fallbackIndex >= 0) spinnerCategory.setSelection(fallbackIndex)
-                        Toast.makeText(this@AddExpenseActivity, "Gemini returned unknown category: '$aiCategory'", Toast.LENGTH_LONG).show()
                     }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(this@AddExpenseActivity, "AI Error: ${e.message}", Toast.LENGTH_LONG).show()
-                    val index = categories.indexOf("Household supplies")
-                    if (index >= 0) spinnerCategory.setSelection(index)
                 }
             }
         }
     }
+
 
     private fun showDatePicker() {
         DatePickerDialog(
@@ -199,18 +146,17 @@ class AddExpenseActivity : AppCompatActivity() {
         }
 
         val username  = user.email!!.substringBefore("@")
-        val category  = spinnerCategory.selectedItem.toString()
+        val category  = spinnerCategory.selectedItem?.toString() ?: "other"
         val account   = spinnerAccount.selectedItem?.toString() ?: "Cash"
-        val timestamp = calendar.timeInMillis   // use selected date millis
+        val timestamp = calendar.timeInMillis
 
-        // To prevent exact titles (like "Pizza") from overwriting each other in Firebase, 
-        // we append the timestamp to the node key.
-        val uniqueTitleKey = "$name-$timestamp"
+        // Sanitize name for Firebase key (illegal: . $ [ ] # /)
+        val sanitizedName = name.replace(Regex("[.#$\\[\\]/]"), "-")
+        val uniqueTitleKey = "$sanitizedName-$timestamp"
 
         val databaseRef = FirebaseDatabase.getInstance()
             .getReference("users/$username/expenses/$category/$uniqueTitleKey")
         
-        // This is exactly what is saved under the Title node in Firebase
         val firebaseExpenseData = mapOf(
             "timestamp" to timestamp,
             "amount" to amount,

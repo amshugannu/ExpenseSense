@@ -28,8 +28,7 @@ android {
             localPropertiesFile.inputStream().use { localProperties.load(it) }
         }
         
-        val geminiApiKey: String = localProperties.getProperty("GEMINI_API_KEY") ?: "\"\""
-        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "GEMINI_API_KEY", "\"\"")
     }
 
     buildFeatures {
@@ -77,8 +76,6 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     
-    // Gemini AI
-    implementation("com.google.ai.client.generativeai:generativeai:0.7.0")
     
     // Charts
     implementation(libs.mpandroidchart)
