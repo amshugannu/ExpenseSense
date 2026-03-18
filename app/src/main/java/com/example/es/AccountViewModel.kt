@@ -25,4 +25,10 @@ class AccountViewModel(private val repository: AccountRepository) : ViewModel() 
         repository.updateBalance(accountName, amount)
         loadAccounts()
     }
+
+    fun deleteAccount(account: Account) {
+        repository.deleteAccount(account) {
+            loadAccounts()
+        }
+    }
 }

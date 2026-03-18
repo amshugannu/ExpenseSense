@@ -117,8 +117,15 @@ class HomeFragment : Fragment() {
 
         // Expose the launcher so MainActivity can trigger it via the FAB
         (activity as? MainActivity)?.setAddExpenseLauncher {
-            startActivity(Intent(requireContext(), AddExpenseActivity::class.java))
+            context?.let {
+                startActivity(Intent(it, AddExpenseActivity::class.java))
+            }
         }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        (activity as? MainActivity)?.setAddExpenseLauncher(null)
     }
 
     private fun setupAccountViewModel() {

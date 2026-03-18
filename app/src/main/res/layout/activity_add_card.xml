@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FFFFFF"
+    tools:context=".AddCardActivity">
+
+    <!-- Header Image -->
+    <ImageView
+        android:id="@+id/imgHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:adjustViewBounds="true"
+        android:scaleType="fitXY"
+        android:src="@drawable/activityheaderbg" />
+
+    <!-- Header Controls -->
+    <RelativeLayout
+        android:id="@+id/headerControls"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignTop="@id/imgHeader"
+        android:layout_alignBottom="@id/imgHeader">
+
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_alignParentStart="true"
+            android:layout_marginStart="8dp"
+            android:layout_marginTop="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@drawable/ic_back_arrow"
+            app:tint="#FFFFFF" />
+
+        <TextView
+            android:id="@+id/headerTitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerHorizontal="true"
+            android:layout_marginTop="56dp"
+            android:text="Add Card"
+            android:textColor="#FFFFFF"
+            android:textSize="22sp"
+            android:textStyle="bold|italic" />
+
+    </RelativeLayout>
+
+    <!-- Save Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnSaveCard"
+        android:layout_width="match_parent"
+        android:layout_height="60dp"
+        android:layout_alignParentBottom="true"
+        android:layout_marginStart="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="28dp"
+        android:text="Save Card"
+        android:textAllCaps="false"
+        android:textColor="#FFFFFF"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        app:backgroundTint="@color/color_teal_primary"
+        app:cornerRadius="30dp"
+        app:elevation="8dp" />
+
+    <!-- Form Content -->
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:layout_above="@id/btnSaveCard"
+        android:layout_below="@id/imgHeader"
+        android:layout_marginTop="-120dp"
+        android:clipToPadding="false"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="16dp">
+
+            <androidx.cardview.widget.CardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                app:cardBackgroundColor="#FFFFFF"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="10dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="20dp">
+
+                    <!-- Name on Card -->
+                    <TextView style="@style/LabelStyle" android:text="NAME ON CARD" />
+                    <EditText android:id="@+id/etCardHolderName" style="@style/FieldStyle" android:hint="Full Name" />
+
+                    <!-- Card Number -->
+                    <TextView style="@style/LabelStyle" android:layout_marginTop="20dp" android:text="CARD NUMBER" />
+                    <EditText android:id="@+id/etCardNumber" style="@style/FieldStyle" android:hint="XXXX XXXX XXXX XXXX" android:inputType="number" />
+
+                    <!-- Card Name -->
+                    <TextView style="@style/LabelStyle" android:layout_marginTop="20dp" android:text="CARD NAME" />
+                    <EditText android:id="@+id/etCardName" style="@style/FieldStyle" android:hint="e.g. Amazon Pay Credit Card" />
+
+                    <!-- Card Type -->
+                    <TextView style="@style/LabelStyle" android:layout_marginTop="20dp" android:text="CARD TYPE" />
+                    <Spinner android:id="@+id/spinnerCardType" style="@style/FieldStyle" android:entries="@array/card_types" />
+
+                    <!-- Credit Card Specific Fields -->
+                    <LinearLayout android:id="@+id/layoutCreditFields" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="gone">
+                        <TextView style="@style/LabelStyle" android:layout_marginTop="20dp" android:text="TOTAL CREDIT LIMIT" />
+                        <EditText android:id="@+id/etCreditLimit" style="@style/FieldStyle" android:hint="₹ 0.00" android:inputType="numberDecimal" />
+
+                        <TextView style="@style/LabelStyle" android:layout_marginTop="20dp" android:text="AVAILABLE LIMIT" />
+                        <EditText android:id="@+id/etAvailableLimit" style="@style/FieldStyle" android:hint="₹ 0.00" android:inputType="numberDecimal" />
+                    </LinearLayout>
+
+                    <!-- Debit Card Specific Fields (Bank Account) -->
+                    <LinearLayout android:id="@+id/layoutDebitFields" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical" android:visibility="visible">
+                        <CheckBox android:id="@+id/cbAddBankAccount" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="16dp" android:checked="true" android:text="Also add the bank account" android:textColor="#2C2C2C" />
+                        
+                        <LinearLayout android:id="@+id/layoutNewAccount" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="vertical">
+                            <TextView style="@style/LabelStyle" android:layout_marginTop="20dp" android:text="INITIAL BALANCE" />
+                            <EditText android:id="@+id/etAccountBalance" style="@style/FieldStyle" android:hint="₹ 0.00" android:inputType="numberDecimal" />
+
+                            <TextView style="@style/LabelStyle" android:layout_marginTop="20dp" android:text="ACCOUNT TYPE" />
+                            <Spinner android:id="@+id/spinnerAccountType" style="@style/FieldStyle" android:entries="@array/account_types" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                </LinearLayout>
+            </androidx.cardview.widget.CardView>
+        </LinearLayout>
+    </ScrollView>
+</RelativeLayout>

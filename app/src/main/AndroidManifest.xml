@@ -37,6 +37,13 @@
         <activity
             android:name=".AddExpenseActivity"
             android:exported="false" />
+        <activity
+            android:name=".AddCardActivity"
+            android:exported="false" />
+        <activity
+            android:name=".ScanCardActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ES" />
     </application>
 
 </manifest>
