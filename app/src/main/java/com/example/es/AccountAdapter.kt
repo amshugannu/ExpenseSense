@@ -7,7 +7,11 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 
-class AccountAdapter(private val accounts: List<Account>) : RecyclerView.Adapter<AccountAdapter.AccountViewHolder>() {
+class AccountAdapter(
+    private val accounts: List<Account>,
+    private val onEdit: (Account) -> Unit,
+    private val onDelete: (Account) -> Unit
+) : RecyclerView.Adapter<AccountAdapter.AccountViewHolder>() {
 
     class AccountViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val tvName: TextView = view.findViewById(R.id.tvAccountName)

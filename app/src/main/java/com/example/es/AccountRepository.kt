@@ -19,7 +19,7 @@ class AccountRepository(private val accountDao: AccountDao) {
         }.start()
     }
 
-    fun saveAccount(account: Account) {
+    fun saveAccount(account: Account, onComplete: () -> Unit = {}) {
         Thread {
             // Save to Room
             accountDao.insertAccount(account)
@@ -30,6 +30,7 @@ class AccountRepository(private val accountDao: AccountDao) {
                 firebaseDatabase.getReference("users/$username/accounts/${account.name}")
                     .setValue(account)
             }
+            onComplete()
         }.start()
     }
 
@@ -46,6 +47,50 @@ class AccountRepository(private val accountDao: AccountDao) {
                     firebaseDatabase.getReference("users/$username/accounts/$accountName/balance")
                         .setValue(newBalance)
                 }
+            }
+        }.start()
+    }
+
+    fun getAccountByName(name: String, callback: (Account?) -> Unit) {
+        Thread {
+            val account = accountDao.getAccountByName(name)
+            callback(account)
+        }.start()
+    }
+
+    fun setAccountBalance(accountName: String, exactBalance: Double, onComplete: () -> Unit = {}) {
+        Thread {
+            val account = accountDao.getAccountByName(accountName)
+            if (account != null) {
+                accountDao.updateBalance(accountName, exactBalance)
+
+                // Sync to Firebase
+                val username = getUsername()
+                if (username != null) {
+                    firebaseDatabase.getReference("users/$username/accounts/$accountName/balance")
+                        .setValue(exactBalance)
+                }
+            }
+            onComplete()
+        }.start()
+    }
+
+    fun deleteAccount(account: Account, onComplete: () -> Unit = {}) {
+        Thread {
+            try {
+                // Remove from Room
+                accountDao.deleteAccount(account)
+
+                // Remove from Firebase
+                val username = getUsername()
+                if (username != null) {
+                    firebaseDatabase.getReference("users/$username/accounts/${account.name}")
+                        .removeValue()
+                }
+                onComplete()
+            } catch (e: Exception) {
+                // Handle potential DB exceptions if needed
+                onComplete()
             }
         }.start()
     }

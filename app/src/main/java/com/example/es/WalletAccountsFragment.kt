@@ -10,6 +10,11 @@ import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.ItemTouchHelper
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
 import com.google.android.material.button.MaterialButton
 
 class WalletAccountsFragment : Fragment() {
@@ -47,9 +52,12 @@ class WalletAccountsFragment : Fragment() {
         btnAddBank = view.findViewById(R.id.btnAddBank)
 
         rvBankAccounts.layoutManager = LinearLayoutManager(requireContext())
-        adapter = AccountAdapter(otherBanks)
+        adapter = AccountAdapter(otherBanks,
+            onEdit = { account -> showEditBankDialog(account) },
+            onDelete = { account -> confirmDelete(account) }
+        )
         rvBankAccounts.adapter = adapter
-
+        
         setupViewModel()
 
         btnEditCash.setOnClickListener { showCashInput(true) }
@@ -114,6 +122,55 @@ class WalletAccountsFragment : Fragment() {
 
                 if (name.isNotEmpty()) {
                     accountViewModel.addAccount(name, type, balance)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showEditBankDialog(account: Account) {
+        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_add_account, null)
+        val etName = dialogView.findViewById<EditText>(R.id.etAccountName)
+        val etType = dialogView.findViewById<EditText>(R.id.etAccountType)
+        val etBalance = dialogView.findViewById<EditText>(R.id.etAccountBalance)
+
+        etName.setText(account.name)
+        etName.isEnabled = false // Primary Key cannot be edited
+        etType.setText(account.type)
+        etBalance.setText(account.balance.toString())
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("Edit Bank Account")
+            .setView(dialogView)
+            .setPositiveButton("Update") { _, _ ->
+                val type = etType.text.toString().trim()
+                val balance = etBalance.text.toString().toDoubleOrNull() ?: 0.0
+                // We use addAccount as an Upsert since Room REPLACE strategy is used inside saveAccount
+                accountViewModel.addAccount(account.name, type, balance)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun confirmDelete(account: Account) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Delete Account")
+            .setMessage("Are you sure you want to delete this bank account? Previous transactions will not be deleted.")
+            .setPositiveButton("Delete") { _, _ ->
+                accountViewModel.deleteAccount(account)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showManageOptionsDialog(account: Account) {
+        val options = arrayOf("Edit Account", "Delete Account")
+        AlertDialog.Builder(requireContext())
+            .setTitle("Manage ${account.name}")
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> showEditBankDialog(account)
+                    1 -> confirmDelete(account)
                 }
             }
             .setNegativeButton("Cancel", null)
