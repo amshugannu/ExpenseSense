@@ -51,12 +51,37 @@ class WalletCardsFragment : Fragment() {
         if (isGranted) {
             launchScanner()
         } else {
+            handlePermissionDenied()
+        }
+    }
+
+    private fun handlePermissionDenied() {
+        if (!shouldShowRequestPermissionRationale(android.Manifest.permission.CAMERA)) {
+            // Permanent denial
+            showSettingsDialog()
+        } else {
+            // Normal denial
             android.widget.Toast.makeText(
                 requireContext(),
                 "Camera permission is required to scan cards",
                 android.widget.Toast.LENGTH_SHORT
             ).show()
         }
+    }
+
+    private fun showSettingsDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("Permission Required")
+            .setMessage("Camera permission is permanently denied. Please enable it in settings to use this feature.")
+            .setPositiveButton("Settings") { _, _ ->
+                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = android.net.Uri.fromParts("package", requireContext().packageName, null)
+                }
+                startActivity(intent)
+            }
+            .setNegativeButton("Cancel", null)
+            .setCancelable(false)
+            .show()
     }
 
     private fun launchScanner() {
@@ -253,12 +278,6 @@ class WalletCardsFragment : Fragment() {
                         currentDragPos = vh.adapterPosition
                         stackedLayoutManager.setDragState(currentDragPos)
 
-                        vh.itemView.animate()
-                            .scaleX(0.95f)
-                            .scaleY(0.95f)
-                            .setDuration(150)
-                            .start()
-
                         vh.itemView.elevation = 100f
                     }
                 }
@@ -273,19 +292,18 @@ class WalletCardsFragment : Fragment() {
                     if (currentDragPos != -1 && finalTarget != -1 && currentDragPos != finalTarget) {
 
                         val cards = cardAdapter.getCards().toMutableList()
-
                         val movedCard = cards.removeAt(currentDragPos)
-
                         cards.add(finalTarget, movedCard)
 
-                        cardAdapter.updateData(cards.toList())
+                        cardAdapter.moveItem(currentDragPos, finalTarget, cards.toList())
+
+                        // Force a re-layout in the next frame to ensure stacking is perfect
+                        rvCards.post { rvCards.requestLayout() }
 
                         saveCardOrder()
                     }
 
                     viewHolder.itemView.animate()
-                        .scaleX(1f)
-                        .scaleY(1f)
                         .rotationX(0f)
                         .setDuration(150)
                         .start()

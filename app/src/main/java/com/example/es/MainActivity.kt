@@ -281,6 +281,9 @@ class MainActivity : AppCompatActivity() {
      */
     fun showCardFocus(cardView: View, model: CardUIModel?, balanceDisplay: String, onEdit: () -> Unit, onDelete: () -> Unit) {
         if (clonedCardView != null) return
+        
+        // Safety: Ensure we don't focus if overlay is already active
+        if (focusOverlay.visibility == View.VISIBLE) return
 
         originalCardView = cardView
         cardView.getLocationOnScreen(originalCardPosition)
@@ -303,19 +306,30 @@ class MainActivity : AppCompatActivity() {
 
         // Bind data to clone
         val ivCardBg: android.widget.ImageView = clone.findViewById(R.id.ivCardBg)
-        val tvCardName: android.widget.TextView = clone.findViewById(R.id.tvCardNameDisplay)
         val tvCardNumber: android.widget.TextView = clone.findViewById(R.id.tvCardNumberDisplay)
         val tvCardHolder: android.widget.TextView = clone.findViewById(R.id.tvCardHolderDisplay)
         val tvBalance: android.widget.TextView = clone.findViewById(R.id.tvBalanceDisplay)
 
         if (model != null) {
-            if (model is CardUIModel.Credit) {
-                ivCardBg.setImageResource(R.drawable.defaultcreditcard)
-            } else {
-                ivCardBg.setImageResource(R.drawable.defaultdebitcard)
+            when (model) {
+                is CardUIModel.Credit -> {
+                    val drawName = model.drawableName
+                    android.util.Log.d("CARD_DEBUG", "Design used in Detail: \$drawName")
+                    val resId = if (!drawName.isNullOrEmpty()) {
+                        resources.getIdentifier(drawName, "drawable", packageName)
+                    } else 0
+                    ivCardBg.setImageResource(if (resId != 0) resId else R.drawable.defaultcreditcard)
+                }
+                is CardUIModel.Debit -> {
+                    val drawName = model.drawableName
+                    android.util.Log.d("CARD_DEBUG", "Design used in Detail: \$drawName")
+                    val resId = if (!drawName.isNullOrEmpty()) {
+                        resources.getIdentifier(drawName, "drawable", packageName)
+                    } else 0
+                    ivCardBg.setImageResource(if (resId != 0) resId else R.drawable.defaultdebitcard)
+                }
             }
             tvBalance.text = balanceDisplay
-            tvCardName.text = model.cardName
             tvCardNumber.text = maskCardNumber(model.cardNumber)
             tvCardHolder.text = model.cardHolderName.uppercase()
         } else {
@@ -438,7 +452,7 @@ class MainActivity : AppCompatActivity() {
     private fun maskCardNumber(number: String): String {
         if (number.length < 4) return number
         val lastFour = number.takeLast(4)
-        return "**** **** **** $lastFour"
+        return "**** $lastFour"
     }
 
     fun hideCardFocus() {

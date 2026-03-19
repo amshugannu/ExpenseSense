@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/rootCardOption"
+    android:layout_width="130dp"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="10dp"
+    android:orientation="vertical"
+    android:padding="4dp">
+
+    <!-- Card image thumbnail with selection border -->
+    <androidx.cardview.widget.CardView
+        android:id="@+id/cvCardThumb"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        app:cardCornerRadius="10dp"
+        app:cardElevation="4dp"
+        app:cardBackgroundColor="@android:color/white">
+
+        <!-- The card art image -->
+        <ImageView
+            android:id="@+id/ivCardThumb"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="Card Thumbnail" />
+
+        <!-- "Other Card" dashed placeholder overlay (hidden by default) -->
+        <LinearLayout
+            android:id="@+id/layoutOtherPlaceholder"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center"
+            android:orientation="vertical"
+            android:background="@drawable/bg_dashed_border"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="+"
+                android:textSize="28sp"
+                android:textColor="@color/color_teal_primary"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- Selected check icon overlay -->
+        <ImageView
+            android:id="@+id/ivSelectedCheck"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:layout_gravity="top|end"
+            android:layout_margin="6dp"
+            android:src="@drawable/ic_check_circle"
+            app:tint="@color/color_teal_primary"
+            android:visibility="gone" />
+
+    </androidx.cardview.widget.CardView>
+
+    <!-- Card short label -->
+    <TextView
+        android:id="@+id/tvCardOptionName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:ellipsize="end"
+        android:inputType="none"
+        android:maxLines="2"
+        android:textAlignment="center"
+        android:textColor="#2C2C2C"
+        android:textSize="11sp" />
+
+</LinearLayout>
