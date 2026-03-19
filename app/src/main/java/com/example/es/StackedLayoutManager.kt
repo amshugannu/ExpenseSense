@@ -58,6 +58,7 @@ class StackedLayoutManager(
         if (state.isPreLayout) return
 
         detachAndScrapAttachedViews(recycler)
+        android.util.Log.d("STACK_DEBUG", "onLayoutChildren: items=${itemCount}, expanded=${isExpanded}")
 
         val totalWidth = width - paddingLeft - paddingRight
 
@@ -135,12 +136,18 @@ class StackedLayoutManager(
                 view.translationY = 0f
             }
 
+            // ENFORCE STABLE SCALE (Option 1: best for reordering)
+            view.scaleX = 1f
+            view.scaleY = 1f
+
             val top =
                 (if (isExpanded) {
                     paddingTop - verticalOffset + (i * (childHeight + 32))
                 } else {
                     paddingTop + (i * collapsedOffset)
                 }) + shiftY
+
+            android.util.Log.d("STACK_DEBUG", "Item $i: top=$top, height=$childHeight, offset=$collapsedOffset")
 
             layoutDecoratedWithMargins(
                 view,
@@ -150,8 +157,9 @@ class StackedLayoutManager(
                 top + childHeight
             )
 
+            // Systematic Elevation: higher index = visually on top
             if (i != dragPosition) {
-                view.elevation = (i * 4).toFloat()
+                view.elevation = (i * 2 + 2).toFloat()
             }
         }
 

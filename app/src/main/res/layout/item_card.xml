@@ -8,69 +8,75 @@
     app:cardElevation="0dp"
     app:cardUseCompatPadding="false">
 
-    <RelativeLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
 
         <ImageView
             android:id="@+id/ivCardBg"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:adjustViewBounds="true"
             android:scaleType="fitCenter"
-            android:src="@drawable/defaultdebitcard" />
+            android:src="@drawable/defaultdebitcard"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-        <TextView
-            android:id="@+id/tvCardNameDisplay"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_alignTop="@id/ivCardBg"
-            android:layout_alignEnd="@id/ivCardBg"
-            android:layout_marginTop="32dp"
-            android:layout_marginEnd="32dp"
-            android:textColor="#FFFFFF"
-            android:textSize="18sp"
-            android:textStyle="bold"
-            android:text="Card Name" />
-
+        <!-- Card Number: Center-left -->
         <TextView
             android:id="@+id/tvCardNumberDisplay"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignTop="@id/ivCardBg"
-            android:layout_alignBottom="@id/ivCardBg"
-            android:layout_centerHorizontal="true"
-            android:gravity="center"
-            android:letterSpacing="0.2"
+            android:layout_marginStart="24dp"
+            android:letterSpacing="0.1"
+            android:text="**** 1234"
             android:textColor="#FFFFFF"
-            android:textSize="22sp"
+            android:textSize="20sp"
             android:textStyle="bold"
-            android:text="XXXX XXXX XXXX XXXX" />
+            app:layout_constraintBottom_toBottomOf="@id/ivCardBg"
+            app:layout_constraintStart_toStartOf="@id/ivCardBg"
+            app:layout_constraintTop_toTopOf="@id/ivCardBg"
+            app:layout_constraintVertical_bias="0.55" />
 
+        <!-- Card Holder: Bottom-left -->
         <TextView
             android:id="@+id/tvCardHolderDisplay"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignBottom="@id/ivCardBg"
-            android:layout_alignStart="@id/ivCardBg"
-            android:layout_marginStart="32dp"
-            android:layout_marginBottom="44dp"
+            android:layout_marginStart="24dp"
+            android:layout_marginBottom="28dp"
             android:text="CARD HOLDER"
             android:textColor="#FFFFFF"
-            android:textSize="14sp" />
+            android:textSize="13sp"
+            app:layout_constraintBottom_toBottomOf="@id/ivCardBg"
+            app:layout_constraintStart_toStartOf="@id/ivCardBg" />
 
+        <!-- Balance: Bottom-right (safe zone left of VISA logo) -->
         <TextView
             android:id="@+id/tvBalanceDisplay"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_alignBottom="@id/ivCardBg"
-            android:layout_alignEnd="@id/ivCardBg"
-            android:layout_marginBottom="44dp"
-            android:layout_marginEnd="32dp"
+            android:layout_marginEnd="12dp"
+            android:layout_marginBottom="28dp"
+            android:text="₹ 0.00"
             android:textColor="#FFFFFF"
             android:textSize="14sp"
             android:textStyle="bold"
-            android:text="₹ 0.00" />
+            app:layout_constraintBottom_toBottomOf="@id/ivCardBg"
+            app:layout_constraintEnd_toStartOf="@id/visaLogoAnchor" />
 
-    </RelativeLayout>
+        <!-- Invisible anchor for the embedded Visa/Mastercard logo area -->
+        <View
+            android:id="@+id/visaLogoAnchor"
+            android:layout_width="60dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="20dp"
+            android:layout_marginBottom="16dp"
+            app:layout_constraintBottom_toBottomOf="@id/ivCardBg"
+            app:layout_constraintEnd_toEndOf="@id/ivCardBg" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
 </androidx.cardview.widget.CardView>
+

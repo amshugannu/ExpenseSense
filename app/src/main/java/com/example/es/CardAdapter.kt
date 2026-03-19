@@ -17,7 +17,6 @@ class CardAdapter(
 
     class CardViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val ivCardBg: android.widget.ImageView = view.findViewById(R.id.ivCardBg)
-        val tvCardName: TextView = view.findViewById(R.id.tvCardNameDisplay)
         val tvCardNumber: TextView = view.findViewById(R.id.tvCardNumberDisplay)
         val tvCardHolder: TextView = view.findViewById(R.id.tvCardHolderDisplay)
         val tvBalance: TextView = view.findViewById(R.id.tvBalanceDisplay)
@@ -40,17 +39,28 @@ class CardAdapter(
         
         when (model) {
             is CardUIModel.Credit -> {
-                holder.ivCardBg.setImageResource(R.drawable.defaultcreditcard)
+                // Try to resolve stored drawable, fall back to default credit card
+                val drawName = model.drawableName
+                android.util.Log.d("CARD_DEBUG", "Design used in List: ${drawName}")
+                val resId = if (!drawName.isNullOrEmpty()) {
+                    holder.itemView.context.resources.getIdentifier(drawName, "drawable", holder.itemView.context.packageName)
+                } else 0
+                holder.ivCardBg.setImageResource(if (resId != 0) resId else R.drawable.defaultcreditcard)
                 holder.tvBalance.text = "Avl: ₹${String.format("%.2f", model.availableLimit)}"
             }
             is CardUIModel.Debit -> {
-                holder.ivCardBg.setImageResource(R.drawable.defaultdebitcard)
+                // Try to resolve stored drawable, fall back to default debit card
+                val drawName = model.drawableName
+                android.util.Log.d("CARD_DEBUG", "Design used in List: ${drawName}")
+                val resId = if (!drawName.isNullOrEmpty()) {
+                    holder.itemView.context.resources.getIdentifier(drawName, "drawable", holder.itemView.context.packageName)
+                } else 0
+                holder.ivCardBg.setImageResource(if (resId != 0) resId else R.drawable.defaultdebitcard)
                 val balance = accountBalances[model.linkedBankAccountId] ?: 0.0
                 holder.tvBalance.text = "Bal: ₹${String.format("%.2f", balance)}"
             }
         }
 
-        holder.tvCardName.text = model.cardName
         holder.tvCardNumber.text = maskCardNumber(model.cardNumber)
         holder.tvCardHolder.text = model.cardHolderName.uppercase()
     }
@@ -64,13 +74,14 @@ class CardAdapter(
     fun getCards(): List<CardUIModel> = cards
 
     fun updateData(newCards: List<CardUIModel>, newBalances: Map<String, Double>? = null) {
+        val oldCards = this.cards
+        this.cards = newCards
+        
         if (newBalances != null) {
             accountBalances = newBalances
         }
-        
-        val oldCards = this.cards
-        this.cards = newCards
 
+        // Handle Removal (1 item)
         if (oldCards.size == newCards.size + 1) {
             val removedIndex = oldCards.indexOfFirst { oldCard -> 
                 newCards.none { it.id == oldCard.id && it.javaClass == oldCard.javaClass } 
@@ -82,13 +93,48 @@ class CardAdapter(
             }
         }
 
+        // Handle Insertion (1 item)
+        if (oldCards.size == newCards.size - 1) {
+            val insertedIndex = newCards.indexOfFirst { newCard ->
+                oldCards.none { it.id == newCard.id && it.javaClass == newCard.javaClass }
+            }
+            if (insertedIndex != -1) {
+                notifyItemInserted(insertedIndex)
+                notifyItemRangeChanged(insertedIndex, newCards.size - insertedIndex)
+                return
+            }
+        }
+
+        // Handle small localized changes (e.g., edits)
+        if (oldCards.size == newCards.size) {
+            var diffCount = 0
+            for (i in oldCards.indices) {
+                if (oldCards[i] != newCards[i]) diffCount++
+            }
+            if (diffCount > 0 && diffCount <= 5) {
+                for (i in oldCards.indices) {
+                    if (oldCards[i] != newCards[i]) notifyItemChanged(i)
+                }
+                return
+            }
+        }
+
         notifyDataSetChanged()
+    }
+
+    fun moveItem(from: Int, to: Int, newList: List<CardUIModel>) {
+        this.cards = newList
+        notifyItemMoved(from, to)
+        // Adjust indices for other items affected by the move
+        val start = Math.min(from, to)
+        val count = Math.abs(from - to) + 1
+        notifyItemRangeChanged(start, count)
     }
 
     private fun maskCardNumber(number: String): String {
         if (number.length < 4) return number
         val lastFour = number.takeLast(4)
-        return "**** **** **** $lastFour"
+        return "**** $lastFour"
     }
 
     fun getCardAt(position: Int): CardUIModel {

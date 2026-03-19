@@ -18,6 +18,7 @@ sealed interface CardUIModel {
         override val last4Digits = card.last4Digits ?: ""
         override val createdAt = card.createdAt
         val linkedBankAccountId = card.linkedBankAccountId ?: ""
+        val drawableName = card.drawableName
     }
 
     data class Credit(val card: CreditCard) : CardUIModel {
@@ -30,5 +31,6 @@ sealed interface CardUIModel {
         override val createdAt = card.createdAt
         val totalLimit = card.totalLimit ?: 0.0
         val availableLimit = card.availableLimit ?: 0.0
+        val drawableName = card.drawableName
     }
 }

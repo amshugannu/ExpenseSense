@@ -58,6 +58,22 @@ class WalletAccountsFragment : Fragment() {
         )
         rvBankAccounts.adapter = adapter
         
+        // Swipe Reveal Setup
+        val density = resources.displayMetrics.density
+        val swipeLimitPx = 160f * density // 2 buttons x 80dp
+        val swipeCallback = SwipeRevealCallback(adapter, swipeLimitPx)
+        val itemTouchHelper = ItemTouchHelper(swipeCallback)
+        itemTouchHelper.attachToRecyclerView(rvBankAccounts)
+
+        // Close swiped items on scroll
+        rvBankAccounts.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                if (abs(dy) > 5) {
+                    swipeCallback.closeAnyOpenItem()
+                }
+            }
+        })
+        
         setupViewModel()
 
         btnEditCash.setOnClickListener { showCashInput(true) }
@@ -163,17 +179,5 @@ class WalletAccountsFragment : Fragment() {
             .show()
     }
 
-    private fun showManageOptionsDialog(account: Account) {
-        val options = arrayOf("Edit Account", "Delete Account")
-        AlertDialog.Builder(requireContext())
-            .setTitle("Manage ${account.name}")
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> showEditBankDialog(account)
-                    1 -> confirmDelete(account)
-                }
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
+    private fun abs(n: Int): Int = if (n < 0) -n else n
 }

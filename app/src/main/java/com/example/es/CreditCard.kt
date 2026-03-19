@@ -13,6 +13,7 @@ data class CreditCard(
     val last4Digits: String? = null,
     val totalLimit: Double? = null,
     val availableLimit: Double? = null,
+    val drawableName: String? = null,
     val orderIndex: Int = 0,
     val createdAt: Long = System.currentTimeMillis()
 )
