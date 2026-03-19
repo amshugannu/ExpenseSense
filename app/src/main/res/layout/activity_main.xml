@@ -47,6 +47,22 @@
         app:maxImageSize="30dp"
         app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Full"
         app:tint="@android:color/white" />
+
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabScanBill"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="90dp"
+        android:contentDescription="Scan Bill"
+        android:src="@drawable/ic_scan"
+        app:backgroundTint="#FF9800"
+        app:elevation="12dp"
+        app:fabSize="normal"
+        app:tint="@android:color/white"
+        app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Full" />
+
     <!-- Global Focus Overlay -->
     <FrameLayout
         android:id="@+id/focusOverlay"
@@ -117,6 +133,49 @@
                 android:paddingHorizontal="24dp"
                 android:elevation="4dp" />
 
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- Loading Overlay for AI Extraction -->
+    <FrameLayout
+        android:id="@+id/llLoadingOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#99000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone"
+        android:elevation="200dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <ProgressBar
+                android:id="@+id/pbLoading"
+                android:layout_width="64dp"
+                android:layout_height="64dp"
+                android:indeterminateTint="@android:color/white" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="Analyzing your receipt..."
+                android:textColor="@android:color/white"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Please wait a moment"
+                android:textColor="#CCCCCC"
+                android:textSize="14sp" />
         </LinearLayout>
     </FrameLayout>
 

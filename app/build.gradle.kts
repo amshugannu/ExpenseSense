@@ -28,7 +28,8 @@ android {
             localPropertiesFile.inputStream().use { localProperties.load(it) }
         }
         
-        buildConfigField("String", "GEMINI_API_KEY", "\"\"")
+        val geminiApiKey = localProperties.getProperty("GEMINI_API_KEY") ?: ""
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
     }
 
     buildFeatures {
@@ -93,4 +94,8 @@ dependencies {
     
     // ML Kit
     implementation(libs.mlkit.text.recognition)
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
+
+    // Networking
+    implementation(libs.okhttp)
 }

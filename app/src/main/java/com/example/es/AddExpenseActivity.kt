@@ -121,6 +121,33 @@ class AddExpenseActivity : AppCompatActivity() {
                 }
             }
         }
+
+        // Handle Intent Extras from Bill Scanning
+        intent.apply {
+            val title = getStringExtra("title")
+            val amount = getDoubleExtra("amount", -1.0)
+            val category = getStringExtra("category")
+            val timestamp = getLongExtra("timestamp", -1L)
+
+            if (!title.isNullOrEmpty()) {
+                etName.setText(title)
+            }
+            if (amount != -1.0) {
+                etAmount.setText(amount.toString())
+            }
+            if (!category.isNullOrEmpty()) {
+                android.util.Log.d("SCANNER_DEBUG", "Received category from intent: $category")
+                val index = categories.indexOfFirst { it.equals(category, ignoreCase = true) }
+                android.util.Log.d("SCANNER_DEBUG", "Matched index for $category: $index")
+                if (index >= 0) {
+                    spinnerCategory.setSelection(index)
+                }
+            }
+            if (timestamp != -1L) {
+                calendar.timeInMillis = timestamp
+                updateDateLabel()
+            }
+        }
     }
 
 
