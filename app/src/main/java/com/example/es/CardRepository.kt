@@ -28,7 +28,6 @@ class CardRepository(
                 val username = getUsername()
                 if (username != null) {
                     val ref = firebaseDatabase.getReference("users/$username/cards/debit_cards/${card.cardName}")
-                    android.util.Log.d("CARD_DEBUG", "WRITE (Debit): ${ref.path}")
                     ref.setValue(card)
                 }
                 callback(true)
@@ -45,7 +44,6 @@ class CardRepository(
                 val username = getUsername()
                 if (username != null) {
                     val ref = firebaseDatabase.getReference("users/$username/cards/debit_cards/${card.cardName}")
-                    android.util.Log.d("CARD_DEBUG", "DELETE (Debit): ${ref.path}")
                     ref.removeValue()
                 }
                 callback(true)
@@ -66,7 +64,6 @@ class CardRepository(
                 val username = getUsername()
                 if (username != null) {
                     val ref = firebaseDatabase.getReference("users/$username/cards/credit_cards/${card.cardName}")
-                    android.util.Log.d("CARD_DEBUG", "WRITE (Credit): ${ref.path}")
                     ref.setValue(card)
                 }
                 callback(true)
@@ -83,7 +80,6 @@ class CardRepository(
                 val username = getUsername()
                 if (username != null) {
                     val ref = firebaseDatabase.getReference("users/$username/cards/credit_cards/${card.cardName}")
-                    android.util.Log.d("CARD_DEBUG", "DELETE (Credit): ${ref.path}")
                     ref.removeValue()
                 }
                 callback(true)
@@ -107,21 +103,16 @@ class CardRepository(
             // 2. Sync from Firebase in Background
             if (username.isNotEmpty()) {
                 val ref = firebaseDatabase.getReference("users/$username/cards")
-                android.util.Log.d("FETCH_DEBUG", "Starting Firebase sync from: ${ref.path}")
                 
                 ref.addListenerForSingleValueEvent(object : com.google.firebase.database.ValueEventListener {
                     override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
-                        android.util.Log.d("DEBUG_FIREBASE", "Snapshot exists: ${snapshot.exists()}")
-                        
                         Thread {
                             var hasChanges = false
                             
                             // Process Debit Cards
                             val debitSnap = snapshot.child("debit_cards")
-                            android.util.Log.d("DEBUG_FIREBASE", "Debit count: ${debitSnap.childrenCount}")
                             for (ds in debitSnap.children) {
                                 val card = ds.getValue(DebitCard::class.java)
-                                android.util.Log.d("DEBUG_FIREBASE", "Debit card parsed: $card")
                                 if (card != null) {
                                     val existing = debitCardDao.getAllDebitCards().find { it.cardName == card.cardName }
                                     if (existing == null) {
@@ -133,10 +124,8 @@ class CardRepository(
                             
                             // Process Credit Cards
                             val creditSnap = snapshot.child("credit_cards")
-                            android.util.Log.d("DEBUG_FIREBASE", "Credit count: ${creditSnap.childrenCount}")
                             for (cs in creditSnap.children) {
                                 val card = cs.getValue(CreditCard::class.java)
-                                android.util.Log.d("DEBUG_FIREBASE", "Credit card parsed: $card")
                                 if (card != null) {
                                     val existing = creditCardDao.getAllCreditCards().find { it.cardName == card.cardName }
                                     if (existing == null) {
@@ -147,7 +136,6 @@ class CardRepository(
                             }
                             
                             if (hasChanges) {
-                                android.util.Log.d("DEBUG_FIREBASE", "Total cards fetched and synced: ${snapshot.childrenCount}")
                                 val updatedDebits = debitCardDao.getAllDebitCards()
                                 val updatedCredits = creditCardDao.getAllCreditCards()
                                 callback(updatedDebits, updatedCredits)
@@ -155,7 +143,7 @@ class CardRepository(
                         }.start()
                     }
                     override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
-                        android.util.Log.e("DEBUG_FIREBASE", "Error: ${error.message}")
+                        // Firebase fetch cancelled or failed
                     }
                 })
             }
@@ -165,9 +153,6 @@ class CardRepository(
     fun cleanupRootCards() {
         // STRICT RULE: No global "cards" root allowed
         firebaseDatabase.getReference("cards").removeValue()
-            .addOnSuccessListener {
-                android.util.Log.d("DB_CLEANUP", "Root level 'cards' node deleted successfully.")
-            }
     }
 
     // --- MIGRATION & CLEANUP ---
@@ -213,10 +198,7 @@ class CardRepository(
                 // Cleanup old Firebase UID-based node if it exists
                 if (userId != null && userId != username) {
                     val legacyRef = firebaseDatabase.getReference("users/$userId/cards")
-                    android.util.Log.d("CARD_DEBUG", "MIGRATION: Deleting LEGACY UID path: ${legacyRef.path}")
                     legacyRef.removeValue()
-                } else {
-                    android.util.Log.d("CARD_DEBUG", "MIGRATION: Skipping wipe, UID matches username or null.")
                 }
 
                 // Cleanup Room legacy data so we don't migrate again

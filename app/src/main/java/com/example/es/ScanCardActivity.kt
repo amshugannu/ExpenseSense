@@ -114,7 +114,7 @@ class ScanCardActivity : AppCompatActivity() {
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageAnalyzer)
             } catch (exc: Exception) {
-                Log.e("ScanCardActivity", "Use case binding failed", exc)
+                // Binding failed
             }
 
         }, ContextCompat.getMainExecutor(this))

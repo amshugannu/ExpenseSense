@@ -134,7 +134,6 @@ class ProfileFragment : Fragment() {
                 activity?.runOnUiThread {
                     Toast.makeText(requireContext(), "Failed to save image: ${e.message}", Toast.LENGTH_LONG).show()
                 }
-                android.util.Log.e("ProfileLocalSave", "Error saving image", e)
             }
         }.start()
     }

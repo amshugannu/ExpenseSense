@@ -75,7 +75,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        android.util.Log.d("DEBUG_APP", "MainActivity onCreate started")
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
@@ -238,11 +237,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun parseWithGemini(rawText: String) {
+        if (!NetworkUtils.isInternetAvailable(this)) {
+            hideLoading()
+            onScanFailure("No internet connection. Please check your network and try again.")
+            return
+        }
+
         val client = OkHttpClient()
         val mediaType = "application/json; charset=utf-8".toMediaType()
         
         val prompt = "Extract data from this receipt text and return ONLY a JSON object with keys: vendor (String), total_amount (Number), date (YYYY-MM-DD), and category (Groceries, Dinner, Drinks, Travel, Fuel, Shopping, Bills, Subscriptions, Other).\n\nReceipt Text: $rawText"
         
+        val apiKey = BuildConfig.GEMINI_API_KEY
         val jsonBody = JSONObject().apply {
             put("contents", org.json.JSONArray().put(JSONObject().apply {
                 put("parts", org.json.JSONArray().put(JSONObject().apply {
@@ -250,48 +256,48 @@ class MainActivity : AppCompatActivity() {
                 }))
             }))
         }
-    
-
-        Log.d("GEMINI_DEBUG", "Prompt: $prompt")
 
         val request = Request.Builder()
             .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
             .post(jsonBody.toString().toRequestBody(mediaType))
             .build()
+    
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val response = client.newCall(request).execute()
                 val responseBody = response.body?.string()
-                Log.d("GEMINI_DEBUG", "Response Code: ${response.code}")
-                Log.d("GEMINI_DEBUG", "Response Body: $responseBody")
                 
                 if (response.isSuccessful && responseBody != null) {
                     val json = JSONObject(responseBody)
                     val candidates = json.optJSONArray("candidates")
                     if (candidates != null && candidates.length() > 0) {
                         val textResponse = candidates
-                            .getJSONObject(0)
-                            .getJSONObject("content")
-                            .getJSONArray("parts")
-                            .getJSONObject(0)
-                            .getString("text")
+                            .optJSONObject(0)
+                            ?.optJSONObject("content")
+                            ?.optJSONArray("parts")
+                            ?.optJSONObject(0)
+                            ?.optString("text")
                         
-                        Log.d("GEMINI_DEBUG", "Extracted Text: $textResponse")
-                        
-                        // Clean markdown backticks just in case
-                        val cleanedText = textResponse.trim()
-                            .removeSurrounding("```json", "```")
-                            .removeSurrounding("```")
-                            .trim()
-                            
-                        val resultData = JSONObject(cleanedText)
-                        withContext(Dispatchers.Main) {
-                            hideLoading()
-                            launchAddExpense(resultData)
+                        if (textResponse != null) {
+                            // Clean markdown backticks just in case
+                            val cleanedText = textResponse.trim()
+                                .removeSurrounding("```json", "```")
+                                .removeSurrounding("```")
+                                .trim()
+                                
+                            val resultData = JSONObject(cleanedText)
+                            withContext(Dispatchers.Main) {
+                                hideLoading()
+                                launchAddExpense(resultData)
+                            }
+                        } else {
+                            withContext(Dispatchers.Main) { 
+                                hideLoading()
+                                onScanFailure("AI failed: Unexpected response format") 
+                            }
                         }
                     } else {
-                        Log.e("GEMINI_DEBUG", "No candidates found")
                         withContext(Dispatchers.Main) { 
                             hideLoading()
                             onScanFailure("AI failed: No response from Gemini") 
@@ -299,14 +305,12 @@ class MainActivity : AppCompatActivity() {
                     }
                 } else {
                     val errorMsg = response.message
-                    Log.e("GEMINI_DEBUG", "Request Failed: $errorMsg")
                     withContext(Dispatchers.Main) { 
                         hideLoading()
                         onScanFailure("API Request Failed: $errorMsg") 
                     }
                 }
             } catch (e: Exception) {
-                Log.e("GEMINI_DEBUG", "Error: ${e.message}", e)
                 withContext(Dispatchers.Main) { 
                     hideLoading()
                     onScanFailure("AI Logic Error: ${e.message}") 

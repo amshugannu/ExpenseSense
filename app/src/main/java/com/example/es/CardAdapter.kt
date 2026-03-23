@@ -41,7 +41,6 @@ class CardAdapter(
             is CardUIModel.Credit -> {
                 // Try to resolve stored drawable, fall back to default credit card
                 val drawName = model.drawableName
-                android.util.Log.d("CARD_DEBUG", "Design used in List: ${drawName}")
                 val resId = if (!drawName.isNullOrEmpty()) {
                     holder.itemView.context.resources.getIdentifier(drawName, "drawable", holder.itemView.context.packageName)
                 } else 0
@@ -51,7 +50,6 @@ class CardAdapter(
             is CardUIModel.Debit -> {
                 // Try to resolve stored drawable, fall back to default debit card
                 val drawName = model.drawableName
-                android.util.Log.d("CARD_DEBUG", "Design used in List: ${drawName}")
                 val resId = if (!drawName.isNullOrEmpty()) {
                     holder.itemView.context.resources.getIdentifier(drawName, "drawable", holder.itemView.context.packageName)
                 } else 0

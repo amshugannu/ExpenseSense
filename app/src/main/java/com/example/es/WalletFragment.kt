@@ -37,7 +37,6 @@ class WalletFragment : Fragment() {
     }
 
     private fun switchTab(isCards: Boolean) {
-        android.util.Log.d("DEBUG_TAB", "WalletFragment switchTab: isCards=$isCards")
         // Update Buttons UI
         btnTabCards.background = ContextCompat.getDrawable(
             requireContext(),

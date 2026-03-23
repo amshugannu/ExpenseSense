@@ -58,7 +58,6 @@ class StackedLayoutManager(
         if (state.isPreLayout) return
 
         detachAndScrapAttachedViews(recycler)
-        android.util.Log.d("STACK_DEBUG", "onLayoutChildren: items=${itemCount}, expanded=${isExpanded}")
 
         val totalWidth = width - paddingLeft - paddingRight
 
@@ -146,8 +145,6 @@ class StackedLayoutManager(
                 } else {
                     paddingTop + (i * collapsedOffset)
                 }) + shiftY
-
-            android.util.Log.d("STACK_DEBUG", "Item $i: top=$top, height=$childHeight, offset=$collapsedOffset")
 
             layoutDecoratedWithMargins(
                 view,

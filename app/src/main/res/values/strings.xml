@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">ES</string>
+    <string name="app_name">Expense Sense</string>
     <!-- Replace with actual web client ID from Firebase Google Sign-In setup -->
     <string name="default_web_client_id">YOUR_WEB_CLIENT_ID_HERE</string>
 </resources>

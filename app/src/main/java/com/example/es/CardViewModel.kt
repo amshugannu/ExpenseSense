@@ -1,6 +1,5 @@
 package com.example.es
 
-import android.util.Log
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -22,7 +21,6 @@ class CardViewModel(private val repository: CardRepository) : ViewModel() {
             
             val sortedList = uiModels.sortedBy { it.createdAt }
             
-            Log.d("DEBUG_VM", "Cards emitted: ${sortedList.size}")
             _cards.postValue(sortedList)
             _isLoading.postValue(false)
         }

@@ -136,9 +136,7 @@ class AddExpenseActivity : AppCompatActivity() {
                 etAmount.setText(amount.toString())
             }
             if (!category.isNullOrEmpty()) {
-                android.util.Log.d("SCANNER_DEBUG", "Received category from intent: $category")
                 val index = categories.indexOfFirst { it.equals(category, ignoreCase = true) }
-                android.util.Log.d("SCANNER_DEBUG", "Matched index for $category: $index")
                 if (index >= 0) {
                     spinnerCategory.setSelection(index)
                 }

@@ -39,6 +39,22 @@ object DrawableCardMapper {
         CardOption("Flipkart Axis CC",     "flipkartaxiscc")
     )
 
+    private val iciciSpecialDebit = listOf(
+        CardOption("ICICI Titanium DC", "icicititaniumdc"),
+        CardOption("ICICI Wealth Management DC", "iciciwealthmangementdc"),
+        CardOption("ICICI Rubyx DC", "icicirubyxdc"),
+        CardOption("ICICI Sapphiro DC", "icicisapphirodc"),
+        CardOption("ICICI Coral DC", "icicicoraldc")
+    )
+
+    private val iciciSpecialCredit = listOf(
+        CardOption("Amazon Pay ICICI CC", "amazonpayicicicc"),
+        CardOption("ICICI Rubyx CC", "icicirubyxcc"),
+        CardOption("ICICI Sapphiro CC", "icicisapphirocc"),
+        CardOption("ICICI Coral CC", "icicicoralcc"),
+        CardOption("ICICI Platinum Chip CC", "iciciplatinumchipcc")
+    )
+
     /**
      * Returns the list of [CardOption] for a given [bank] display name and
      * [cardType] ("Debit" or "Credit"). Always appends "Other Card" at the end.
@@ -49,11 +65,17 @@ object DrawableCardMapper {
         val result = mutableListOf<CardOption>()
 
         if (bankKey != null) {
-            // Generate numbered cards 1-5
-            for (i in 1..5) {
-                val drawable = "${bankKey}${typeKey}card$i"
-                val label = "${bank} ${if (cardType == "Debit") "Debit" else "Credit"} Card $i"
-                result.add(CardOption(label, drawable))
+            // Generate numbered cards 1-5 (except for ICICI Bank which has specific names now)
+            if (bankKey != "icici") {
+                for (i in 1..5) {
+                    val drawable = "${bankKey}${typeKey}card$i"
+                    val label = "${bank} ${if (cardType == "Debit") "Debit" else "Credit"} Card $i"
+                    result.add(CardOption(label, drawable))
+                }
+            } else {
+                // Add specific ICICI cards
+                if (cardType == "Debit") result.addAll(iciciSpecialDebit)
+                else result.addAll(iciciSpecialCredit)
             }
 
             // Add special Axis cards

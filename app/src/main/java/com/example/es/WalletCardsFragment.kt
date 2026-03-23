@@ -97,7 +97,6 @@ class WalletCardsFragment : Fragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        android.util.Log.d("DEBUG_LIFECYCLE", "WalletCardsFragment onCreateView")
         val view = inflater.inflate(R.layout.fragment_wallet_cards, container, false)
 
         rvCards = view.findViewById(R.id.rvCards)
@@ -121,7 +120,6 @@ class WalletCardsFragment : Fragment() {
 
         // Observe Cards from ViewModel
         cardViewModel.cards.observe(viewLifecycleOwner) { list ->
-            android.util.Log.d("DEBUG_UI", "Cards received in UI: ${list.size}")
             
             lifecycleScope.launch {
                 val accounts = withContext(Dispatchers.IO) {
@@ -194,25 +192,18 @@ class WalletCardsFragment : Fragment() {
     }
 
     override fun onResume() {
-        android.util.Log.d("DEBUG_LIFECYCLE", "WalletCardsFragment onResume")
         super.onResume()
         loadCards()
     }
 
     private fun loadCards() {
-        android.util.Log.d("DEBUG_LIFECYCLE", "WalletCardsFragment loadCards called")
         val user = FirebaseAuth.getInstance().currentUser
-        val email = user?.email
-        val username = email?.substringBefore("@")?.replace(".", "_") ?: ""
-        android.util.Log.d("DEBUG_LIFECYCLE", "Username resolved: '$username'")
-
-        if (username.isEmpty()) {
-            android.util.Log.e("DEBUG_LIFECYCLE", "FAILURE: Username is empty. User not logged in?")
+        val username = user?.email?.substringBefore("@")
+        
+        if (username.isNullOrEmpty()) {
             return
         }
 
-        // Directly trigger ViewModel — it handles background work internally
-        android.util.Log.d("DEBUG_LIFECYCLE", "Calling cardViewModel.loadCards()")
         cardViewModel.loadCards()
     }
 
