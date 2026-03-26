@@ -11,6 +11,9 @@ interface TransactionDao {
     @Insert
     fun insertTransaction(transaction: Transaction)
 
+    @Insert
+    fun insertAll(transactions: List<Transaction>)
+
     @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
     fun getAllTransactions(): List<Transaction>
 

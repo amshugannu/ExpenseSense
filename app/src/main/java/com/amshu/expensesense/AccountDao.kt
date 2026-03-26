@@ -8,6 +8,9 @@ interface AccountDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertAccount(account: Account)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertAll(accounts: List<Account>)
+
     @Query("SELECT * FROM accounts")
     fun getAllAccounts(): List<Account>
 
@@ -16,6 +19,9 @@ interface AccountDao {
 
     @Query("UPDATE accounts SET balance = :newBalance WHERE name = :name")
     fun updateBalance(name: String, newBalance: Double)
+
+    @Update
+    fun updateAccount(account: Account)
 
     @Delete
     fun deleteAccount(account: Account)

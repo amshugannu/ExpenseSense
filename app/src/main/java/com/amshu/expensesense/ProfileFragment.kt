@@ -140,10 +140,19 @@ class ProfileFragment : Fragment() {
 
     private fun logoutUser() {
         auth.signOut()
+        
+        // PHASE 1: Data Isolation - Clear Room Database on Logout
+        Thread {
+            val db = AppDatabase.getDatabase(requireContext())
+            db.clearAllTables()
+            android.util.Log.d("PHASE1", "Room DB cleared")
+        }.start()
+
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(getString(R.string.default_web_client_id))
             .requestEmail()
             .build()
+
         val googleSignInClient = GoogleSignIn.getClient(requireActivity(), gso)
         googleSignInClient.signOut().addOnCompleteListener {
             val intent = Intent(requireActivity(), SignUpActivity::class.java)

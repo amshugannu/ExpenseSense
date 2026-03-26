@@ -1,5 +1,6 @@
 package com.amshu.expensesense
 
+import android.util.Log
 import com.google.firebase.database.FirebaseDatabase
 import java.text.SimpleDateFormat
 import java.util.*
@@ -13,65 +14,22 @@ class PaymentRepository(
     private val budgetDao: BudgetDao
 ) {
 
-    fun saveExpense(
+    private data class ExpenseMutationResult(
+        val account: Account?,
+        val budget: Budget?
+    )
+
+    fun addExpense(
         transaction: Transaction,
-        paymentMethod: String,
-        referenceId: String?,
         username: String,
         callback: (Boolean, String?) -> Unit
     ) {
-        val amount = transaction.amount
-        val timestamp = transaction.timestamp
-        val monthYear = SimpleDateFormat("MM-yyyy", Locale.getDefault()).format(Date(timestamp))
-
-        // 1. Perform Room Transaction for local data integrity
         Thread {
             try {
-                database.runInTransaction {
-                    // Deduct from correct source
-                    when (paymentMethod) {
-                        "Cash" -> {
-                            val cashAccount = accountDao.getAccountByName("Cash")
-                                ?: throw Exception("Cash account not found")
-                            accountDao.updateBalance("Cash", cashAccount.balance - amount)
-                        }
-                        "UPI" -> {
-                            val bankAccount = accountDao.getAccountByName(referenceId!!)
-                                ?: throw Exception("Bank account $referenceId not found")
-                            accountDao.updateBalance(referenceId, bankAccount.balance - amount)
-                        }
-                        "Debit Card" -> {
-                            val card = debitCardDao.getAllDebitCards().find { it.cardName == referenceId }
-                                ?: throw Exception("Debit Card $referenceId not found")
-                            val linkedAccountName = card.linkedBankAccountId ?: ""
-                            val bankAccount = accountDao.getAccountByName(linkedAccountName)
-                                ?: throw Exception("Linked Bank account $linkedAccountName not found")
-                            accountDao.updateBalance(linkedAccountName, bankAccount.balance - amount)
-                        }
-                        "Credit Card" -> {
-                            val card = creditCardDao.getAllCreditCards().find { it.cardName == referenceId }
-                                ?: throw Exception("Credit Card $referenceId not found")
-                            val newAvailableLimit = (card.availableLimit ?: 0.0) - amount
-                            if (newAvailableLimit < 0) throw Exception("Credit limit exceeded")
-                            
-                            val updatedCard = card.copy(availableLimit = newAvailableLimit)
-                            creditCardDao.updateCreditCard(updatedCard)
-                        }
-                    }
-
-                    // Insert Transaction record
-                    transactionDao.insertTransaction(transaction)
-                    
-                    // Deduct from budget (Directly in Transaction)
-                    val budget = budgetDao.getBudget(monthYear)
-                    if (budget != null) {
-                        budgetDao.updateRemainingBudget(monthYear, budget.remainingBudget - amount)
-                    }
-                }
-
-                // 2. Sync to Firebase (Non-blocking)
-                syncToFirebase(transaction, username)
-
+                val mutationResult = applyExpenseTransaction(transaction, isDelete = false)
+                syncExpenseToFirebase(transaction, username)
+                syncAccountToFirebase(username, mutationResult.account)
+                syncBudgetToFirebase(username, mutationResult.budget)
                 callback(true, null)
             } catch (e: Exception) {
                 callback(false, e.message)
@@ -79,7 +37,144 @@ class PaymentRepository(
         }.start()
     }
 
-    private fun syncToFirebase(transaction: Transaction, username: String) {
+    fun deleteExpense(
+        transaction: Transaction,
+        username: String,
+        callback: (Boolean, String?) -> Unit
+    ) {
+        Thread {
+            try {
+                val mutationResult = applyExpenseTransaction(transaction, isDelete = true)
+                removeExpenseFromFirebase(transaction, username)
+                syncAccountToFirebase(username, mutationResult.account)
+                syncBudgetToFirebase(username, mutationResult.budget)
+                callback(true, null)
+            } catch (e: Exception) {
+                callback(false, e.message)
+            }
+        }.start()
+    }
+
+    fun saveExpense(
+        transaction: Transaction,
+        paymentMethod: String,
+        referenceId: String?,
+        username: String,
+        callback: (Boolean, String?) -> Unit
+    ) {
+        val normalizedTransaction = transaction.copy(
+            paymentMethod = paymentMethod,
+            referenceId = referenceId ?: transaction.referenceId
+        )
+        addExpense(normalizedTransaction, username, callback)
+    }
+
+    private fun applyExpenseTransaction(
+        transaction: Transaction,
+        isDelete: Boolean
+    ): ExpenseMutationResult {
+        var updatedAccount: Account? = null
+        var updatedBudget: Budget? = null
+
+        database.runInTransaction {
+            updatedAccount = updateLinkedAccount(transaction, isDelete)
+            updateLinkedCreditCard(transaction, isDelete)
+            updatedBudget = updateBudget(transaction, isDelete)
+
+            if (isDelete) {
+                transactionDao.deleteTransaction(transaction)
+            } else {
+                transactionDao.insertTransaction(transaction)
+            }
+        }
+
+        return ExpenseMutationResult(
+            account = updatedAccount,
+            budget = updatedBudget
+        )
+    }
+
+    private fun updateLinkedAccount(transaction: Transaction, isDelete: Boolean): Account? {
+        val account = resolveAccount(transaction) ?: return null
+        val updatedBalance = when {
+            account.type.equals("Credit", ignoreCase = true) && isDelete -> account.balance - transaction.amount
+            account.type.equals("Credit", ignoreCase = true) -> account.balance + transaction.amount
+            isDelete -> account.balance + transaction.amount
+            else -> account.balance - transaction.amount
+        }
+
+        val updatedAccount = account.copy(balance = updatedBalance)
+        accountDao.updateAccount(updatedAccount)
+
+        Log.d("PHASE2", "Expense: ${transaction.amount}")
+        Log.d("PHASE2", "Account updated: ${updatedAccount.balance}")
+        return updatedAccount
+    }
+
+    private fun resolveAccount(transaction: Transaction): Account? {
+        return when (transaction.paymentMethod) {
+            "Cash" -> accountDao.getAccountByName("Cash")
+            "UPI" -> {
+                val accountName = transaction.referenceId ?: transaction.accountName
+                accountName.takeIf { it.isNotBlank() }?.let(accountDao::getAccountByName)
+            }
+            "Debit Card" -> {
+                val cardName = transaction.referenceId ?: transaction.accountName
+                val card = debitCardDao.getAllDebitCards().find { it.cardName == cardName }
+                    ?: return null
+                val linkedAccountName = card.linkedBankAccountId ?: return null
+                accountDao.getAccountByName(linkedAccountName)
+            }
+            "Credit Card" -> {
+                val accountName = transaction.referenceId ?: transaction.accountName
+                accountName.takeIf { it.isNotBlank() }?.let(accountDao::getAccountByName)
+            }
+            else -> {
+                val accountName = transaction.referenceId ?: transaction.accountName
+                accountName.takeIf { it.isNotBlank() }?.let(accountDao::getAccountByName)
+            }
+        }
+    }
+
+    private fun updateLinkedCreditCard(transaction: Transaction, isDelete: Boolean) {
+        if (transaction.paymentMethod != "Credit Card") return
+
+        val cardName = transaction.referenceId ?: transaction.accountName
+        val card = creditCardDao.getAllCreditCards().find { it.cardName == cardName } ?: return
+        val currentAvailableLimit = card.availableLimit ?: 0.0
+        val updatedAvailableLimit = if (isDelete) {
+            currentAvailableLimit + transaction.amount
+        } else {
+            val nextLimit = currentAvailableLimit - transaction.amount
+            if (nextLimit < 0) {
+                throw Exception("Credit limit exceeded")
+            }
+            nextLimit
+        }
+
+        creditCardDao.updateCreditCard(card.copy(availableLimit = updatedAvailableLimit))
+    }
+
+    private fun updateBudget(transaction: Transaction, isDelete: Boolean): Budget? {
+        val monthYear = SimpleDateFormat("MM-yyyy", Locale.getDefault())
+            .format(Date(transaction.timestamp))
+        val currentBudget = budgetDao.getBudget(monthYear) ?: return null
+        val currentSpent = (currentBudget.totalBudget - currentBudget.remainingBudget).coerceAtLeast(0.0)
+        val updatedSpent = if (isDelete) {
+            (currentSpent - transaction.amount).coerceAtLeast(0.0)
+        } else {
+            currentSpent + transaction.amount
+        }
+        val updatedBudget = currentBudget.copy(
+            remainingBudget = currentBudget.totalBudget - updatedSpent
+        )
+        budgetDao.updateBudget(updatedBudget)
+
+        Log.d("PHASE2", "Budget updated: $updatedSpent")
+        return updatedBudget
+    }
+
+    private fun syncExpenseToFirebase(transaction: Transaction, username: String) {
         val firebaseId = transaction.firebaseId ?: return
         val category = transaction.category
         
@@ -93,5 +188,26 @@ class PaymentRepository(
         FirebaseDatabase.getInstance()
             .getReference("users/$username/expenses/$category/$firebaseId")
             .setValue(firebaseExpenseData)
+    }
+
+    private fun removeExpenseFromFirebase(transaction: Transaction, username: String) {
+        val firebaseId = transaction.firebaseId ?: return
+        FirebaseDatabase.getInstance()
+            .getReference("users/$username/expenses/${transaction.category}/$firebaseId")
+            .removeValue()
+    }
+
+    private fun syncAccountToFirebase(username: String, account: Account?) {
+        if (account == null) return
+        FirebaseDatabase.getInstance()
+            .getReference("users/$username/accounts/${account.name}/balance")
+            .setValue(account.balance)
+    }
+
+    private fun syncBudgetToFirebase(username: String, budget: Budget?) {
+        if (budget == null) return
+        FirebaseDatabase.getInstance()
+            .getReference("users/$username/budgets/${budget.monthYear}/remainingBudget")
+            .setValue(budget.remainingBudget)
     }
 }

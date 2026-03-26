@@ -273,6 +273,7 @@ class HomeFragment : Fragment() {
                                     val timestamp = expenseSnapshot.child("timestamp").getValue(Long::class.java) ?: 0L
                                     val amount = expenseSnapshot.child("amount").getValue(Double::class.java) ?: 0.0
                                     val accountName = expenseSnapshot.child("account").getValue(String::class.java) ?: "Cash"
+                                    val paymentMethod = expenseSnapshot.child("paymentMethod").getValue(String::class.java) ?: "Cash"
                                     
                                     val record = Transaction(
                                         title      = cleanTitle,
@@ -280,6 +281,8 @@ class HomeFragment : Fragment() {
                                         category   = categoryName,
                                         accountName = accountName,
                                         timestamp  = timestamp,
+                                        paymentMethod = paymentMethod,
+                                        referenceId = accountName,
                                         firebaseId = uniqueTitleKey // Store unique key for deletion
                                     )
                                     dao.insertTransaction(record)
@@ -352,43 +355,24 @@ class HomeFragment : Fragment() {
         if (user == null || user.email == null) return
         
         val username = user.email!!.substringBefore("@")
-        
-        val fid = record.firebaseId
-        if (!fid.isNullOrEmpty()) {
-            FirebaseDatabase.getInstance()
-                .getReference("users/$username/expenses/${record.category}/$fid")
-                .removeValue()
-        }
-        // Remove from Room then refresh
-        Thread {
-            AppDatabase.getDatabase(requireContext())
-                .transactionDao()
-                .deleteTransaction(record)
 
-            // Perform reimbursement
-            val monthYear = SimpleDateFormat("MM-yyyy", Locale.getDefault()).format(Date(record.timestamp))
-            val repository = BudgetRepository(
-                AppDatabase.getDatabase(requireContext()).budgetDao(),
-                AppDatabase.getDatabase(requireContext()).transactionDao()
-            )
-            repository.reimburseBudget(monthYear, record.amount)
-
-            // Reimbursing account balance
-            val accountRepo = AccountRepository(AppDatabase.getDatabase(requireContext()).accountDao())
-            accountRepo.updateBalance(record.accountName, record.amount)
-
-            activity?.runOnUiThread { 
+        val database = AppDatabase.getDatabase(requireContext())
+        val paymentRepository = PaymentRepository(
+            database,
+            database.transactionDao(),
+            database.accountDao(),
+            database.debitCardDao(),
+            database.creditCardDao(),
+            database.budgetDao()
+        )
+        paymentRepository.deleteExpense(record, username) { success, _ ->
+            if (!success) return@deleteExpense
+            activity?.runOnUiThread {
                 loadFromRoom()
-                // Refresh budget view model immediately since Room is updated
                 budgetViewModel.loadCurrentMonthBudget()
-                
-                // Also refresh after a small delay just in case Firebase sync takes a moment
-                Thread {
-                    Thread.sleep(500)
-                    activity?.runOnUiThread { budgetViewModel.loadCurrentMonthBudget() }
-                }.start()
+                accountViewModel.loadAccounts()
             }
-        }.start()
+        }
     }
 
     // ── Summary helpers ───────────────────────────────────────────────────────

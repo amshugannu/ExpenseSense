@@ -14,6 +14,9 @@ interface BudgetDao {
     @Query("UPDATE budgets SET remainingBudget = :newRemaining WHERE monthYear = :monthYear")
     fun updateRemainingBudget(monthYear: String, newRemaining: Double)
 
+    @Update
+    fun updateBudget(budget: Budget)
+
     @Query("SELECT * FROM budgets")
     fun getAllBudgets(): List<Budget>
 }

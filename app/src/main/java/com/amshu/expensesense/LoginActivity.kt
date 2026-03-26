@@ -44,7 +44,7 @@ class LoginActivity : AppCompatActivity() {
         val currentUser = auth.currentUser
         if (currentUser != null) {
             if (currentUser.isEmailVerified || currentUser.providerData.any { it.providerId == GoogleAuthProvider.PROVIDER_ID }) {
-                goToDashboardActivity()
+                performInitialSyncAndNavigate()
             }
         }
 
@@ -69,7 +69,7 @@ class LoginActivity : AppCompatActivity() {
                     if (task.isSuccessful) {
                         val user = auth.currentUser
                         if (user != null && user.isEmailVerified) {
-                            goToDashboardActivity()
+                            performInitialSyncAndNavigate()
                         } else {
                             Toast.makeText(this, "Please verify email", Toast.LENGTH_SHORT).show()
                             auth.signOut()
@@ -150,13 +150,147 @@ class LoginActivity : AppCompatActivity() {
                                 Toast.makeText(this@LoginActivity, "Email not registered. Please sign up first.", Toast.LENGTH_LONG).show()
                             }
                         } else {
-                            goToDashboardActivity()
+                            performInitialSyncAndNavigate()
                         }
                     }
                 } else {
                     Toast.makeText(this, "Firebase authentication failed", Toast.LENGTH_SHORT).show()
                 }
             }
+    }
+
+    private fun performInitialSyncAndNavigate() {
+        val user = auth.currentUser ?: return
+        val username = user.email?.substringBefore("@") ?: return
+
+        Thread {
+            val db = AppDatabase.getDatabase(this@LoginActivity)
+            val isLocalDbEmpty = db.accountDao().getAllAccounts().isEmpty()
+
+            if (!NetworkUtils.isInternetAvailable(this@LoginActivity)) {
+                if (isLocalDbEmpty) {
+                    runOnUiThread {
+                        Toast.makeText(this@LoginActivity, "No internet and no local data to load.", Toast.LENGTH_LONG).show()
+                    }
+                    return@Thread // Safely block app load
+                } else {
+                    runOnUiThread { goToDashboardActivity() }
+                    return@Thread
+                }
+            }
+
+            // Phase 1: Clear Room DB
+            db.clearAllTables()
+            android.util.Log.d("PHASE1", "Room DB cleared")
+            android.util.Log.d("PHASE1", "Fetching Firebase data")
+
+            val database = com.google.firebase.database.FirebaseDatabase.getInstance()
+            val latch = java.util.concurrent.CountDownLatch(3)
+
+            // 1. Fetch Accounts
+            database.getReference("users/$username/accounts").get()
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful && task.result != null && task.result!!.exists()) {
+                        try {
+                            val accounts = mutableListOf<Account>()
+                            for (snapshot in task.result!!.children) {
+                                val accName = snapshot.child("name").getValue(String::class.java) ?: snapshot.key ?: ""
+                                val type = snapshot.child("type").getValue(String::class.java)
+                                val balanceRaw = snapshot.child("balance").value
+                                val balance = when (balanceRaw) {
+                                    is Long -> balanceRaw.toDouble()
+                                    is Double -> balanceRaw
+                                    else -> 0.0
+                                }
+                                accounts.add(Account(name = accName, type = type, balance = balance))
+                            }
+                            db.accountDao().insertAll(accounts)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    } else {
+                        db.accountDao().insertAccount(Account(name = "Cash", type = "Cash", balance = 0.0))
+                    }
+                    latch.countDown()
+                }
+
+            // 2. Fetch Budgets
+            database.getReference("users/$username/budgets").get()
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful && task.result != null && task.result!!.exists()) {
+                        try {
+                            for (snapshot in task.result!!.children) {
+                                val monthYear = snapshot.child("monthYear").getValue(String::class.java) ?: snapshot.key ?: ""
+                                val tbRaw = snapshot.child("totalBudget").value
+                                val rbRaw = snapshot.child("remainingBudget").value
+                                val tb = when(tbRaw) { is Long -> tbRaw.toDouble(); is Double -> tbRaw; else -> 0.0 }
+                                val rb = when(rbRaw) { is Long -> rbRaw.toDouble(); is Double -> rbRaw; else -> 0.0 }
+                                db.budgetDao().insertBudget(Budget(monthYear = monthYear, totalBudget = tb, remainingBudget = rb))
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    latch.countDown()
+                }
+
+            // 3. Fetch Expenses
+            database.getReference("users/$username/expenses").get()
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful && task.result != null && task.result!!.exists()) {
+                        try {
+                            val transactions = mutableListOf<Transaction>()
+                            for (catGroup in task.result!!.children) {
+                                val category = catGroup.key ?: "Expense"
+                                for (expenseSnap in catGroup.children) {
+                                    val fId = expenseSnap.key
+                                    val timestampRaw = expenseSnap.child("timestamp").value
+                                    val timestamp = when (timestampRaw) {
+                                        is Long -> timestampRaw
+                                        is Int -> timestampRaw.toLong()
+                                        else -> System.currentTimeMillis()
+                                    }
+                                    val amountRaw = expenseSnap.child("amount").value
+                                    val amount = when (amountRaw) {
+                                        is Long -> amountRaw.toDouble()
+                                        is Double -> amountRaw
+                                        else -> 0.0
+                                    }
+                                    val paymentMethod = expenseSnap.child("paymentMethod").getValue(String::class.java) ?: "Cash"
+                                    val account = expenseSnap.child("account").getValue(String::class.java) ?: "Cash"
+
+                                    transactions.add(
+                                        Transaction(
+                                            id = 0,
+                                            title = category,
+                                            amount = amount,
+                                            category = category,
+                                            accountName = account,
+                                            timestamp = timestamp,
+                                            paymentMethod = paymentMethod,
+                                            referenceId = account,
+                                            firebaseId = fId
+                                        )
+                                    )
+                                }
+                            }
+                            db.transactionDao().insertAll(transactions)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    latch.countDown()
+                }
+
+            try {
+                latch.await()
+                android.util.Log.d("PHASE1", "Data inserted into Room")
+                runOnUiThread { goToDashboardActivity() }
+            } catch (e: InterruptedException) {
+                e.printStackTrace()
+                runOnUiThread { goToDashboardActivity() }
+            }
+        }.start()
     }
 
     private fun goToDashboardActivity() {
