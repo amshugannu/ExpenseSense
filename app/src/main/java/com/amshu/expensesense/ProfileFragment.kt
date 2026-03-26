@@ -145,7 +145,6 @@ class ProfileFragment : Fragment() {
         Thread {
             val db = AppDatabase.getDatabase(requireContext())
             db.clearAllTables()
-            android.util.Log.d("PHASE1", "Room DB cleared")
         }.start()
 
         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)

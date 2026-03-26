@@ -181,8 +181,6 @@ class LoginActivity : AppCompatActivity() {
 
             // Phase 1: Clear Room DB
             db.clearAllTables()
-            android.util.Log.d("PHASE1", "Room DB cleared")
-            android.util.Log.d("PHASE1", "Fetching Firebase data")
 
             val database = com.google.firebase.database.FirebaseDatabase.getInstance()
             val latch = java.util.concurrent.CountDownLatch(3)
@@ -284,7 +282,6 @@ class LoginActivity : AppCompatActivity() {
 
             try {
                 latch.await()
-                android.util.Log.d("PHASE1", "Data inserted into Room")
                 runOnUiThread { goToDashboardActivity() }
             } catch (e: InterruptedException) {
                 e.printStackTrace()

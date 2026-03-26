@@ -106,8 +106,6 @@ class PaymentRepository(
         val updatedAccount = account.copy(balance = updatedBalance)
         accountDao.updateAccount(updatedAccount)
 
-        Log.d("PHASE2", "Expense: ${transaction.amount}")
-        Log.d("PHASE2", "Account updated: ${updatedAccount.balance}")
         return updatedAccount
     }
 
@@ -170,7 +168,6 @@ class PaymentRepository(
         )
         budgetDao.updateBudget(updatedBudget)
 
-        Log.d("PHASE2", "Budget updated: $updatedSpent")
         return updatedBudget
     }
 
