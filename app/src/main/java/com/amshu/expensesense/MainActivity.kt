@@ -34,6 +34,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import android.graphics.Color
+import android.util.Log
 
 
 class MainActivity : AppCompatActivity() {
@@ -212,6 +213,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun processImageUri(uri: Uri) {
+        Log.d("AI_DEBUG", "Image path: $uri")
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
         try {
             val image = InputImage.fromFilePath(this, uri)
@@ -221,95 +223,126 @@ class MainActivity : AppCompatActivity() {
                     if (rawText.isNotEmpty()) {
                         parseWithGemini(rawText)
                     } else {
+                        Log.e("AI_DEBUG", "API FAILED: OCR failed: No text detected")
                         onScanFailure("OCR failed: No text detected")
                     }
                 }
-                .addOnFailureListener { e -> onScanFailure("OCR failed: ${e.message}") }
+                .addOnFailureListener { e -> 
+                    Log.e("AI_DEBUG", "Crash: " + e.message, e)
+                    Log.e("AI_DEBUG", "API FAILED: OCR failed: ${e.message}", e)
+                    onScanFailure("OCR failed: ${e.message}") 
+                }
         } catch (e: Exception) {
+            Log.e("AI_DEBUG", "Crash: " + e.message, e)
+            Log.e("AI_DEBUG", "API FAILED: Process error: ${e.message}", e)
             onScanFailure("Process error: ${e.message}")
         }
     }
 
     private fun parseWithGemini(rawText: String) {
-        if (!NetworkUtils.isInternetAvailable(this)) {
-            hideLoading()
-            onScanFailure("No internet connection. Please check your network and try again.")
-            return
-        }
+        try {
+            Log.d("AI_DEBUG", "API KEY: " + BuildConfig.GEMINI_API_KEY)
+            Log.d("AI_DEBUG", "API KEY LENGTH: " + (if (BuildConfig.GEMINI_API_KEY != null) BuildConfig.GEMINI_API_KEY.length else "null"))
+            
+            Log.d("AI_DEBUG", "Internet available: " + NetworkUtils.isInternetAvailable(this))
+            if (!NetworkUtils.isInternetAvailable(this)) {
+                hideLoading()
+                onScanFailure("No internet connection. Please check your network and try again.")
+                return
+            }
 
-        val client = OkHttpClient()
-        val mediaType = "application/json; charset=utf-8".toMediaType()
-        
-        val prompt = "Extract data from this receipt text and return ONLY a JSON object with keys: vendor (String), total_amount (Number), date (YYYY-MM-DD), and category (Groceries, Dinner, Drinks, Travel, Fuel, Shopping, Bills, Subscriptions, Other).\n\nReceipt Text: $rawText"
-        
-        val apiKey = BuildConfig.GEMINI_API_KEY
-        val jsonBody = JSONObject().apply {
-            put("contents", org.json.JSONArray().put(JSONObject().apply {
-                put("parts", org.json.JSONArray().put(JSONObject().apply {
-                    put("text", prompt)
+            Log.d("AI_DEBUG", "OCR text: $rawText")
+
+            val client = OkHttpClient()
+            val mediaType = "application/json; charset=utf-8".toMediaType()
+            
+            val prompt = "Extract data from this receipt text and return ONLY a JSON object with keys: vendor (String), total_amount (Number), date (YYYY-MM-DD), and category (Groceries, Dinner, Drinks, Travel, Fuel, Shopping, Bills, Subscriptions, Other).\n\nReceipt Text: $rawText"
+            
+            val apiKey = BuildConfig.GEMINI_API_KEY
+            val jsonBody = JSONObject().apply {
+                put("contents", org.json.JSONArray().put(JSONObject().apply {
+                    put("parts", org.json.JSONArray().put(JSONObject().apply {
+                        put("text", prompt)
+                    }))
                 }))
-            }))
-        }
+            }
 
-        val request = Request.Builder()
-            .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
-            .post(jsonBody.toString().toRequestBody(mediaType))
-            .build()
-    
+            val request = Request.Builder()
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=$apiKey")
+                .post(jsonBody.toString().toRequestBody(mediaType))
+                .build()
+        
+            val startTime = System.currentTimeMillis()
 
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                val response = client.newCall(request).execute()
-                val responseBody = response.body?.string()
-                
-                if (response.isSuccessful && responseBody != null) {
-                    val json = JSONObject(responseBody)
-                    val candidates = json.optJSONArray("candidates")
-                    if (candidates != null && candidates.length() > 0) {
-                        val textResponse = candidates
-                            .optJSONObject(0)
-                            ?.optJSONObject("content")
-                            ?.optJSONArray("parts")
-                            ?.optJSONObject(0)
-                            ?.optString("text")
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    Log.d("AI_DEBUG", "Starting API request")
+                    val response = client.newCall(request).execute()
+                    val responseBody = response.body?.string()
+                    
+                    Log.d("AI_DEBUG", "API Time: " + (System.currentTimeMillis() - startTime) + "ms")
+                    
+                    if (response.isSuccessful && responseBody != null) {
+                        Log.d("AI_DEBUG", "API Success Response: $responseBody")
                         
-                        if (textResponse != null) {
-                            // Clean markdown backticks just in case
-                            val cleanedText = textResponse.trim()
-                                .removeSurrounding("```json", "```")
-                                .removeSurrounding("```")
-                                .trim()
-                                
-                            val resultData = JSONObject(cleanedText)
-                            withContext(Dispatchers.Main) {
-                                hideLoading()
-                                launchAddExpense(resultData)
+                        val json = JSONObject(responseBody)
+                        val candidates = json.optJSONArray("candidates")
+                        if (candidates != null && candidates.length() > 0) {
+                            val textResponse = candidates
+                                .optJSONObject(0)
+                                ?.optJSONObject("content")
+                                ?.optJSONArray("parts")
+                                ?.optJSONObject(0)
+                                ?.optString("text")
+                            
+                            if (textResponse != null) {
+                                // Clean markdown backticks just in case
+                                val cleanedText = textResponse.trim()
+                                    .removeSurrounding("```json", "```")
+                                    .removeSurrounding("```")
+                                    .trim()
+                                    
+                                val resultData = JSONObject(cleanedText)
+                                withContext(Dispatchers.Main) {
+                                    hideLoading()
+                                    launchAddExpense(resultData)
+                                }
+                            } else {
+                                Log.e("AI_DEBUG", "API FAILED: textResponse is null")
+                                withContext(Dispatchers.Main) { 
+                                    hideLoading()
+                                    onScanFailure("AI failed: Unexpected response format") 
+                                }
                             }
                         } else {
+                            Log.e("AI_DEBUG", "API FAILED: candidates is null or empty")
                             withContext(Dispatchers.Main) { 
                                 hideLoading()
-                                onScanFailure("AI failed: Unexpected response format") 
+                                onScanFailure("AI failed: No response from Gemini") 
                             }
                         }
                     } else {
+                        Log.e("AI_DEBUG", "API FAILED: Response code: " + response.code)
+                        Log.e("AI_DEBUG", "API FAILED: Error body: " + responseBody)
+                        val errorMsg = response.message
                         withContext(Dispatchers.Main) { 
                             hideLoading()
-                            onScanFailure("AI failed: No response from Gemini") 
+                            onScanFailure("API Request Failed: $errorMsg") 
                         }
                     }
-                } else {
-                    val errorMsg = response.message
+                } catch (e: Exception) {
+                    Log.e("AI_DEBUG", "Crash: " + e.message, e)
+                    Log.e("AI_DEBUG", "API FAILED: " + e.message, e)
+                    Log.d("AI_DEBUG", "API Time: " + (System.currentTimeMillis() - startTime) + "ms")
                     withContext(Dispatchers.Main) { 
                         hideLoading()
-                        onScanFailure("API Request Failed: $errorMsg") 
+                        onScanFailure("AI Logic Error: ${e.message}") 
                     }
                 }
-            } catch (e: Exception) {
-                withContext(Dispatchers.Main) { 
-                    hideLoading()
-                    onScanFailure("AI Logic Error: ${e.message}") 
-                }
             }
+        } catch (e: Exception) {
+            Log.e("AI_DEBUG", "Crash: " + e.message, e)
+            Log.e("AI_DEBUG", "API FAILED: " + e.message, e)
         }
     }
 
@@ -334,8 +367,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun onScanFailure(message: String = "AI extraction failed. Please enter manually.") {
+        Log.e("AI_DEBUG", "onScanFailure: $message")
         hideLoading()
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "Scan failed. Try again.", Toast.LENGTH_SHORT).show()
         val intent = Intent(this, AddExpenseActivity::class.java)
         startActivity(intent)
     }
