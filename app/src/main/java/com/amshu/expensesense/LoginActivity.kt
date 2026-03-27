@@ -15,6 +15,7 @@ import com.google.android.gms.common.api.ApiException
 import com.google.android.material.textfield.TextInputEditText
 import android.widget.ImageButton
 import com.google.firebase.auth.GoogleAuthProvider
+import android.util.Log
 
 class LoginActivity : AppCompatActivity() {
 
@@ -160,6 +161,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun performInitialSyncAndNavigate() {
+        Log.d("SYNC_DEBUG", "Login Success → Starting sync")
         val user = auth.currentUser ?: return
         val username = user.email?.substringBefore("@") ?: return
 
@@ -181,6 +183,7 @@ class LoginActivity : AppCompatActivity() {
 
             // Phase 1: Clear Room DB
             db.clearAllTables()
+            Log.d("SYNC_DEBUG", "Room Cleared")
 
             val database = com.google.firebase.database.FirebaseDatabase.getInstance()
             val latch = java.util.concurrent.CountDownLatch(3)
@@ -188,9 +191,9 @@ class LoginActivity : AppCompatActivity() {
             // 1. Fetch Accounts
             database.getReference("users/$username/accounts").get()
                 .addOnCompleteListener { task ->
+                    val firebaseAccounts = mutableListOf<Account>()
                     if (task.isSuccessful && task.result != null && task.result!!.exists()) {
                         try {
-                            val accounts = mutableListOf<Account>()
                             for (snapshot in task.result!!.children) {
                                 val accName = snapshot.child("name").getValue(String::class.java) ?: snapshot.key ?: ""
                                 val type = snapshot.child("type").getValue(String::class.java)
@@ -200,14 +203,27 @@ class LoginActivity : AppCompatActivity() {
                                     is Double -> balanceRaw
                                     else -> 0.0
                                 }
-                                accounts.add(Account(name = accName, type = type, balance = balance))
+                                val account = Account(name = accName, type = type, balance = balance)
+                                if (account != null) {
+                                    Log.d("SYNC_DEBUG", "Firebase Account → ID: " + account.name + ", Name: " + account.name + ", Balance: " + account.balance)
+                                }
+                                firebaseAccounts.add(account)
                             }
-                            db.accountDao().insertAll(accounts)
+                            Log.d("SYNC_DEBUG", "Firebase Data Fetch Complete")
+                            for (acct in firebaseAccounts) {
+                                if (acct != null) {
+                                    Log.d("SYNC_DEBUG", "Inserting into Room → " + acct.name + " Balance: " + acct.balance)
+                                }
+                            }
+                            db.accountDao().insertAll(firebaseAccounts)
+                            Log.d("SYNC_DEBUG", "Room Insert Complete")
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
-                    } else {
-                        db.accountDao().insertAccount(Account(name = "Cash", type = "Cash", balance = 0.0))
+                    }
+                    
+                    if (firebaseAccounts.isEmpty()) {
+                        createDefaultCashAccount(db, database, username)
                     }
                     latch.countDown()
                 }
@@ -288,6 +304,27 @@ class LoginActivity : AppCompatActivity() {
                 runOnUiThread { goToDashboardActivity() }
             }
         }.start()
+    }
+
+    private fun createDefaultCashAccount(db: AppDatabase, firebaseDatabase: com.google.firebase.database.FirebaseDatabase, username: String) {
+        Log.d("SYNC_DEBUG", "createDefaultCashAccount() CALLED")
+
+        val existing = db.accountDao().getAccountByName("Cash")
+        if (existing != null) {
+            Log.d("SYNC_DEBUG", "Cash already exists → skipping default creation")
+            return
+        }
+
+        Log.d("SYNC_DEBUG", "New user detected → Creating default account")
+        val defaultAccount = Account(name = "Cash", type = "Wallet", balance = 0.0)
+        Log.d("SYNC_DEBUG", "Default Cash Account Created with Balance: " + defaultAccount.balance)
+        
+        Log.d("SYNC_DEBUG", "Inserting into Room → " + defaultAccount.name + " Balance: " + defaultAccount.balance)
+        db.accountDao().insertAccount(defaultAccount)
+        Log.d("SYNC_DEBUG", "Room Insert Complete")
+
+        // Only write to Firebase if it is a new user (which we are if we get here)
+        firebaseDatabase.getReference("users/$username/accounts/${defaultAccount.name}").setValue(defaultAccount)
     }
 
     private fun goToDashboardActivity() {

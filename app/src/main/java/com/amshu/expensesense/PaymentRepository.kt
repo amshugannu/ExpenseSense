@@ -96,6 +96,15 @@ class PaymentRepository(
 
     private fun updateLinkedAccount(transaction: Transaction, isDelete: Boolean): Account? {
         val account = resolveAccount(transaction) ?: return null
+        
+        if (account != null) {
+            if (isDelete) {
+                Log.d("SYNC_DEBUG", "Before Delete Reverse → " + account.name + " Balance: " + account.balance)
+            } else {
+                Log.d("SYNC_DEBUG", "Before Update → " + account.name + " Balance: " + account.balance)
+            }
+        }
+        
         val updatedBalance = when {
             account.type.equals("Credit", ignoreCase = true) && isDelete -> account.balance - transaction.amount
             account.type.equals("Credit", ignoreCase = true) -> account.balance + transaction.amount
@@ -106,11 +115,19 @@ class PaymentRepository(
         val updatedAccount = account.copy(balance = updatedBalance)
         accountDao.updateAccount(updatedAccount)
 
+        if (updatedAccount != null) {
+            if (isDelete) {
+                Log.d("SYNC_DEBUG", "After Delete Reverse → " + updatedAccount.name + " Balance: " + updatedAccount.balance)
+            } else {
+                Log.d("SYNC_DEBUG", "After Update → " + updatedAccount.name + " Balance: " + updatedAccount.balance)
+            }
+        }
+
         return updatedAccount
     }
 
     private fun resolveAccount(transaction: Transaction): Account? {
-        return when (transaction.paymentMethod) {
+        val resolved = when (transaction.paymentMethod) {
             "Cash" -> accountDao.getAccountByName("Cash")
             "UPI" -> {
                 val accountName = transaction.referenceId ?: transaction.accountName
@@ -132,6 +149,10 @@ class PaymentRepository(
                 accountName.takeIf { it.isNotBlank() }?.let(accountDao::getAccountByName)
             }
         }
+        if (resolved != null) {
+            Log.d("SYNC_DEBUG", "Room Account Read → " + resolved.name + " Balance: " + resolved.balance)
+        }
+        return resolved
     }
 
     private fun updateLinkedCreditCard(transaction: Transaction, isDelete: Boolean) {
@@ -196,6 +217,7 @@ class PaymentRepository(
 
     private fun syncAccountToFirebase(username: String, account: Account?) {
         if (account == null) return
+        Log.d("SYNC_DEBUG", "Updating Firebase → " + account.name + " Balance: " + account.balance)
         FirebaseDatabase.getInstance()
             .getReference("users/$username/accounts/${account.name}/balance")
             .setValue(account.balance)

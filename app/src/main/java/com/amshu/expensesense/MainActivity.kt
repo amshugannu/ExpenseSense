@@ -157,8 +157,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
-
-        checkAndCreateDefaultAccount()
     }
 
     private lateinit var scannerLauncher: androidx.activity.result.ActivityResultLauncher<IntentSenderRequest>
@@ -374,21 +372,7 @@ class MainActivity : AppCompatActivity() {
         startActivity(intent)
     }
 
-    private fun checkAndCreateDefaultAccount() {
-        val prefs = getSharedPreferences("ExpenseSensePrefs", MODE_PRIVATE)
-        val isFirstRun = prefs.getBoolean("isFirstRun_Accounts", true)
 
-        if (isFirstRun) {
-            val database = AppDatabase.getDatabase(this)
-            val repository = AccountRepository(database.accountDao())
-            
-            // Create default Cash account
-            val defaultAccount = Account("Cash", "Wallet", 0.0)
-            repository.saveAccount(defaultAccount)
-
-            prefs.edit().putBoolean("isFirstRun_Accounts", false).apply()
-        }
-    }
 
     private fun applyHomeNav() {
         if (bottomNavigationView.menu.size() != 5) {
