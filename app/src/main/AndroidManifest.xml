@@ -48,6 +48,9 @@
             android:name=".ScanCardActivity"
             android:exported="false"
             android:theme="@style/Theme.ES" />
+        <activity
+            android:name=".StatementReconciliationActivity"
+            android:exported="false" />
     </application>
 
 </manifest>

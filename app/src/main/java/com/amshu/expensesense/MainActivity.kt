@@ -42,6 +42,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var bottomNavigationView: BottomNavigationView
     private lateinit var fabAdd: FloatingActionButton
     private lateinit var fabScanBill: FloatingActionButton
+    private lateinit var fabReconciliation: FloatingActionButton
     
     private val apiKey = BuildConfig.GEMINI_API_KEY
     
@@ -84,6 +85,7 @@ class MainActivity : AppCompatActivity() {
         btnOverlayEdit = findViewById(R.id.btnOverlayEdit)
         btnOverlayDelete = findViewById(R.id.btnOverlayDelete)
         fabScanBill = findViewById(R.id.fabScanBill)
+        fabReconciliation = findViewById(R.id.fabReconciliation)
         llLoadingOverlay = findViewById(R.id.llLoadingOverlay)
 
         focusDimView.setOnClickListener { hideCardFocus() }
@@ -140,6 +142,14 @@ class MainActivity : AppCompatActivity() {
             val isHome = bottomNavigationView.selectedItemId == R.id.nav_home
             if (isHome) {
                 showBillScanOptions() 
+            }
+        }
+
+        // Reconciliation Feature Entry Point
+        fabReconciliation.setOnClickListener {
+            val isHome = bottomNavigationView.selectedItemId == R.id.nav_home
+            if (isHome) {
+                startActivity(Intent(this, StatementReconciliationActivity::class.java))
             }
         }
 
@@ -459,7 +469,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showFab() {
-        listOf(fabAdd, fabScanBill).forEach { fab ->
+        listOf(fabAdd, fabScanBill, fabReconciliation).forEach { fab ->
             fab.scaleX = 0f
             fab.scaleY = 0f
             fab.visibility = View.VISIBLE
@@ -473,7 +483,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun hideFab() {
-        listOf(fabAdd, fabScanBill).forEach { fab ->
+        listOf(fabAdd, fabScanBill, fabReconciliation).forEach { fab ->
             fab.animate()
                 .scaleX(0f)
                 .scaleY(0f)
@@ -637,6 +647,7 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(R.id.bottomNavigationView).setRenderEffect(blurEffect)
             findViewById<View>(R.id.fabAdd).setRenderEffect(blurEffect)
             findViewById<View>(R.id.fabScanBill).setRenderEffect(blurEffect)
+            findViewById<View>(R.id.fabReconciliation).setRenderEffect(blurEffect)
         }
     }
 
@@ -647,6 +658,7 @@ class MainActivity : AppCompatActivity() {
             findViewById<View>(R.id.bottomNavigationView).setRenderEffect(null)
             findViewById<View>(R.id.fabAdd).setRenderEffect(null)
             findViewById<View>(R.id.fabScanBill).setRenderEffect(null)
+            findViewById<View>(R.id.fabReconciliation).setRenderEffect(null)
         }
     }
 }

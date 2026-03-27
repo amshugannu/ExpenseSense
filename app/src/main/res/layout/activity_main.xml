@@ -59,6 +59,21 @@
         android:src="@drawable/ic_scan"
         app:backgroundTint="#FF9800"
         app:elevation="12dp"
+        app:tint="@android:color/white"
+        app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Full" />
+
+    <!-- Reconciliation Feature Entry Point -->
+    <com.google.android.material.floatingactionbutton.FloatingActionButton
+        android:id="@+id/fabReconciliation"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="162dp"
+        android:contentDescription="Bank Statement Reconciliation"
+        android:src="@drawable/ic_receipt_long"
+        app:backgroundTint="#4CAF50"
+        app:elevation="12dp"
         app:fabSize="normal"
         app:tint="@android:color/white"
         app:shapeAppearance="@style/ShapeAppearance.Material3.Corner.Full" />
