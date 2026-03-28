@@ -30,6 +30,9 @@ android {
         
         val geminiApiKey = localProperties.getProperty("GEMINI_API_KEY") ?: ""
         buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        
+        val geminiApiKey2 = localProperties.getProperty("GEMINI_API_KEY_2") ?: ""
+        buildConfigField("String", "GEMINI_API_KEY_2", "\"$geminiApiKey2\"")
     }
 
     buildFeatures {
@@ -99,4 +102,7 @@ dependencies {
 
     // Networking
     implementation(libs.okhttp)
+    
+    // PDF Processing
+    implementation(libs.pdfbox.android)
 }
