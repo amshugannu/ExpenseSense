@@ -14,9 +14,7 @@
         android:label="@string/app_name"
         android:roundIcon="@drawable/applogo"
         android:supportsRtl="true"
-        android:theme="@style/Theme.ES"
-        android:debuggable="false"
-        tools:ignore="HardcodedDebugMode">
+        android:theme="@style/Theme.ES">
         <activity
             android:name=".Onboarding"
             android:exported="false" />

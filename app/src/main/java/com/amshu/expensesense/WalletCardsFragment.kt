@@ -148,7 +148,7 @@ class WalletCardsFragment : Fragment() {
             emptyMap(),
             onEdit = { model ->
                 val intent = Intent(requireContext(), AddCardActivity::class.java)
-                intent.putExtra(AddCardActivity.EXTRA_CARD_ID, model.id)
+                intent.putExtra(AddCardActivity.EXTRA_CARD_NAME, model.id)
                 intent.putExtra("extra_card_type", if (model is CardUIModel.Credit) "Credit" else "Debit")
                 startActivity(intent)
             },
@@ -369,14 +369,14 @@ class WalletCardsFragment : Fragment() {
             balanceStr,
             onEdit = {
                 val intent = Intent(requireContext(), AddCardActivity::class.java)
-                intent.putExtra(AddCardActivity.EXTRA_CARD_ID, model.id)
+                intent.putExtra(AddCardActivity.EXTRA_CARD_NAME, model.id)
                 intent.putExtra("extra_card_type", if (model is CardUIModel.Credit) "Credit" else "Debit")
                 startActivity(intent)
             },
             onDelete = {
                 // Immediate UI removal
                 val currentCards = cardAdapter.getCards()
-                val pos = currentCards.indexOfFirst { it.id == model.id && it.javaClass == model.javaClass }
+                val pos = currentCards.indexOfFirst { it.id == model.id }
                 if (pos != -1) {
                     val newList = currentCards.toMutableList()
                     newList.removeAt(pos)
@@ -428,7 +428,7 @@ class WalletCardsFragment : Fragment() {
                             launch(Dispatchers.Main) {
 
                                 val currentCards = cardAdapter.getCards()
-                                val pos = currentCards.indexOfFirst { it.id == model.id && it.javaClass == model.javaClass }
+                                val pos = currentCards.indexOfFirst { it.id == model.id }
                                 if (pos != -1) {
                                     val newList = currentCards.toMutableList()
                                     newList.removeAt(pos)

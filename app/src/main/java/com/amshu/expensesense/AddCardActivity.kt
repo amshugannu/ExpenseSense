@@ -55,12 +55,12 @@ class AddCardActivity : AppCompatActivity() {
     private var isOtherBank: Boolean = false
     private var selectedCardType: String = "" // "Debit" or "Credit"
     private var selectedOption: CardOption? = null
-    private var editingCardId: Int = 0
+    private var editingCardName: String? = null
 
     private lateinit var cardOptionAdapter: CardOptionAdapter
 
     companion object {
-        const val EXTRA_CARD_ID = "extra_card_id"
+        const val EXTRA_CARD_NAME = "extra_card_name"
     }
 
     // ────────────────────────────────────────────────────────────────────────
@@ -89,10 +89,10 @@ class AddCardActivity : AppCompatActivity() {
         btnSaveCard.setOnClickListener { saveCard() }
 
         // Edit mode
-        editingCardId = intent.getIntExtra(EXTRA_CARD_ID, 0)
+        editingCardName = intent.getStringExtra(EXTRA_CARD_NAME)
         val cardType = intent.getStringExtra("extra_card_type")
-        if (editingCardId != 0) {
-            loadCardData(editingCardId, cardType)
+        if (!editingCardName.isNullOrEmpty()) {
+            loadCardData(editingCardName!!, cardType)
             btnSaveCard.text = "Update Card"
             findViewById<TextView>(R.id.headerTitle)?.text = "Edit Card"
         } else {
@@ -341,7 +341,6 @@ class AddCardActivity : AppCompatActivity() {
             val limit     = etCreditLimit.text.toString().toDoubleOrNull() ?: 0.0
             val available = etAvailableLimit.text.toString().toDoubleOrNull() ?: 0.0
             val card = CreditCard(
-                id             = editingCardId,
                 cardHolderName = holder,
                 cardNumber     = number,
                 cardName       = safeCardName,
@@ -354,7 +353,7 @@ class AddCardActivity : AppCompatActivity() {
             cardRepository.saveCreditCard(card) { success ->
                 runOnUiThread {
                     if (success) {
-                        Toast.makeText(this, if (editingCardId == 0) "Credit Card Saved!" else "Credit Card Updated!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(this, if (editingCardName.isNullOrEmpty()) "Credit Card Saved!" else "Credit Card Updated!", Toast.LENGTH_SHORT).show()
                         finish()
                     } else {
                         Toast.makeText(this, "Error saving card. Please try again.", Toast.LENGTH_SHORT).show()
@@ -364,7 +363,6 @@ class AddCardActivity : AppCompatActivity() {
         } else {
             val saveDebitAction = {
                 val card = DebitCard(
-                    id                 = editingCardId,
                     cardHolderName     = holder,
                     cardNumber         = number,
                     cardName           = safeCardName,
@@ -376,7 +374,7 @@ class AddCardActivity : AppCompatActivity() {
                 cardRepository.saveDebitCard(card) { success ->
                     runOnUiThread {
                         if (success) {
-                            Toast.makeText(this, if (editingCardId == 0) "Debit Card Saved!" else "Debit Card Updated!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this, if (editingCardName.isNullOrEmpty()) "Debit Card Saved!" else "Debit Card Updated!", Toast.LENGTH_SHORT).show()
                             finish()
                         } else {
                             Toast.makeText(this, "Error saving card. Please try again.", Toast.LENGTH_SHORT).show()
@@ -398,15 +396,15 @@ class AddCardActivity : AppCompatActivity() {
 
     // ── Edit Mode Pre-fill ────────────────────────────────────────────────────
 
-    private fun loadCardData(id: Int, type: String?) {
+    private fun loadCardData(name: String, type: String?) {
         if (type == "Credit") {
-            cardRepository.getCreditCardById(id) { card ->
+            cardRepository.getCreditCardByName(name) { card ->
                 if (card != null) {
                     runOnUiThread { prefillCredit(card) }
                 }
             }
         } else {
-            cardRepository.getDebitCardById(id) { card ->
+            cardRepository.getDebitCardByName(name) { card ->
                 if (card != null) {
                     runOnUiThread { prefillDebit(card) }
                 }

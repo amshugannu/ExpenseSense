@@ -38,20 +38,20 @@ class ReconciliationViewModel : ViewModel() {
     }
 
     fun updateRawDebug(text: String, source: String) {
-        Log.d("ReconViewModel", "RAW TEXT LENGTH: ${text.length}")
-        Log.d("ReconViewModel", "RAW TEXT PREVIEW: ${text.take(200)}")
+        if (BuildConfig.DEBUG) { Log.d("ReconViewModel", "RAW TEXT LENGTH: ${text.length}") }
+        if (BuildConfig.DEBUG) { Log.d("ReconViewModel", "RAW TEXT PREVIEW: ${text.take(200)}") }
         debugRawText.postValue(text)
         debugRawSource.postValue("Source: $source")
     }
 
     fun parseTransactions(rawText: String) {
         _parsingState.postValue(ParsingState.Loading)
-        Log.d("ReconViewModel", "Local rule-based pipeline started")
+        if (BuildConfig.DEBUG) { Log.d("ReconViewModel", "Local rule-based pipeline started") }
 
         viewModelScope.launch(Dispatchers.IO) {
             val startTime = System.currentTimeMillis()
             try {
-                Log.d("ReconViewModel", "Parsing started")
+                if (BuildConfig.DEBUG) { Log.d("ReconViewModel", "Parsing started") }
                 val allLines = rawText.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
                 
                 val transactionLines = detectTransactionSection(allLines)
@@ -59,7 +59,7 @@ class ReconciliationViewModel : ViewModel() {
 
                 val blocks = constructTransactionBlocks(transactionLines)
                 debugBlocksText.postValue(blocks.joinToString("\n---\n") { it.getCleanedText() })
-                Log.d("ReconViewModel", "Total blocks: ${blocks.size}")
+                if (BuildConfig.DEBUG) { Log.d("ReconViewModel", "Total blocks: ${blocks.size}") }
 
                 val parsedList = mutableListOf<ReconciliationTransaction>()
                 var unknownCount = 0
@@ -89,14 +89,14 @@ class ReconciliationViewModel : ViewModel() {
 
                 val finalResults = parsedList.distinct().sortedByDescending { it.date }
                 
-                Log.d("ReconViewModel", "Parsed transactions: ${finalResults.size}")
-                Log.d("ReconViewModel", "Unknown type count: $unknownCount")
-                Log.d("ReconViewModel", "Parsing completed in ${System.currentTimeMillis() - startTime}ms")
+                if (BuildConfig.DEBUG) { Log.d("ReconViewModel", "Parsed transactions: ${finalResults.size}") }
+                if (BuildConfig.DEBUG) { Log.d("ReconViewModel", "Unknown type count: $unknownCount") }
+                if (BuildConfig.DEBUG) { Log.d("ReconViewModel", "Parsing completed in ${System.currentTimeMillis() - startTime}ms") }
 
                 _parsingState.postValue(ParsingState.Success(finalResults))
 
             } catch (e: Exception) {
-                Log.e("ReconViewModel", "Pipeline failure", e)
+                if (BuildConfig.DEBUG) { Log.e("ReconViewModel", "Pipeline failure", e) }
                 postError("Extraction failed: ${e.message}")
             }
         }
@@ -278,12 +278,12 @@ class ReconciliationViewModel : ViewModel() {
             }
         }
 
-        Log.d("START_DETECTION", "Initial startIndex: $startIndex")
-        Log.d("START_DETECTION", "Refined startIndex: $refinedStart")
-        Log.d("START_DETECTION", "First 5 lines from start:")
+        if (BuildConfig.DEBUG) { Log.d("START_DETECTION", "Initial startIndex: $startIndex") }
+        if (BuildConfig.DEBUG) { Log.d("START_DETECTION", "Refined startIndex: $refinedStart") }
+        if (BuildConfig.DEBUG) { Log.d("START_DETECTION", "First 5 lines from start:") }
         
         lines.subList(refinedStart, kotlin.math.min(refinedStart + 5, lines.size)).forEach {
-            Log.d("START_DETECTION", it)
+            if (BuildConfig.DEBUG) { Log.d("START_DETECTION", it) }
         }
 
         return lines.subList(refinedStart, lines.size)
@@ -309,7 +309,7 @@ class ReconciliationViewModel : ViewModel() {
 
         currentBlock?.let { blocks.add(it) }
 
-        Log.d("ReconViewModel", "Detected starts: \$startCount")
+        if (BuildConfig.DEBUG) { Log.d("ReconViewModel", "Detected starts: \$startCount") }
         return blocks
     }
 

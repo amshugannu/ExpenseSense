@@ -22,8 +22,7 @@ class CardRepository(
     fun saveDebitCard(card: DebitCard, callback: (Boolean) -> Unit) {
         Thread {
             try {
-                if (card.id == 0) debitCardDao.insertDebitCard(card)
-                else debitCardDao.updateDebitCard(card)
+                debitCardDao.insertDebitCard(card) // insert with REPLACE handles both new and existing
 
                 val username = getUsername()
                 if (username != null) {
@@ -58,8 +57,7 @@ class CardRepository(
     fun saveCreditCard(card: CreditCard, callback: (Boolean) -> Unit) {
         Thread {
             try {
-                if (card.id == 0) creditCardDao.insertCreditCard(card)
-                else creditCardDao.updateCreditCard(card)
+                creditCardDao.insertCreditCard(card) // insert with REPLACE handles both new and existing
 
                 val username = getUsername()
                 if (username != null) {
@@ -108,17 +106,16 @@ class CardRepository(
                     override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
                         Thread {
                             var hasChanges = false
+                            val localDebits = debitCardDao.getAllDebitCards().associateBy { it.cardName }
+                            val localCredits = creditCardDao.getAllCreditCards().associateBy { it.cardName }
                             
                             // Process Debit Cards
                             val debitSnap = snapshot.child("debit_cards")
                             for (ds in debitSnap.children) {
                                 val card = ds.getValue(DebitCard::class.java)
-                                if (card != null) {
-                                    val existing = debitCardDao.getAllDebitCards().find { it.cardName == card.cardName }
-                                    if (existing == null) {
-                                        debitCardDao.insertDebitCard(card)
-                                        hasChanges = true
-                                    }
+                                if (card != null && !localDebits.containsKey(card.cardName)) {
+                                    debitCardDao.insertDebitCard(card)
+                                    hasChanges = true
                                 }
                             }
                             
@@ -126,19 +123,14 @@ class CardRepository(
                             val creditSnap = snapshot.child("credit_cards")
                             for (cs in creditSnap.children) {
                                 val card = cs.getValue(CreditCard::class.java)
-                                if (card != null) {
-                                    val existing = creditCardDao.getAllCreditCards().find { it.cardName == card.cardName }
-                                    if (existing == null) {
-                                        creditCardDao.insertCreditCard(card)
-                                        hasChanges = true
-                                    }
+                                if (card != null && !localCredits.containsKey(card.cardName)) {
+                                    creditCardDao.insertCreditCard(card)
+                                    hasChanges = true
                                 }
                             }
                             
                             if (hasChanges) {
-                                val updatedDebits = debitCardDao.getAllDebitCards()
-                                val updatedCredits = creditCardDao.getAllCreditCards()
-                                callback(updatedDebits, updatedCredits)
+                                callback(debitCardDao.getAllDebitCards(), creditCardDao.getAllCreditCards())
                             }
                         }.start()
                     }
@@ -211,16 +203,16 @@ class CardRepository(
         }.start()
     }
 
-    fun getDebitCardById(id: Int, callback: (DebitCard?) -> Unit) {
+    fun getDebitCardByName(name: String, callback: (DebitCard?) -> Unit) {
         Thread {
-            val card = debitCardDao.getDebitCardById(id)
+            val card = debitCardDao.getDebitCardByName(name)
             callback(card)
         }.start()
     }
 
-    fun getCreditCardById(id: Int, callback: (CreditCard?) -> Unit) {
+    fun getCreditCardByName(name: String, callback: (CreditCard?) -> Unit) {
         Thread {
-            val card = creditCardDao.getCreditCardById(id)
+            val card = creditCardDao.getCreditCardByName(name)
             callback(card)
         }.start()
     }

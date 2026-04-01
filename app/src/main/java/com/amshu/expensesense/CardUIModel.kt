@@ -1,7 +1,7 @@
 package com.amshu.expensesense
 
 sealed interface CardUIModel {
-    val id: Int
+    val id: String
     val cardHolderName: String
     val cardNumber: String
     val cardName: String
@@ -10,7 +10,7 @@ sealed interface CardUIModel {
     val createdAt: Long
 
     data class Debit(val card: DebitCard) : CardUIModel {
-        override val id = card.id
+        override val id = card.cardName
         override val cardHolderName = card.cardHolderName ?: ""
         override val cardNumber = card.cardNumber ?: ""
         override val cardName = card.cardName ?: ""
@@ -22,7 +22,7 @@ sealed interface CardUIModel {
     }
 
     data class Credit(val card: CreditCard) : CardUIModel {
-        override val id = card.id
+        override val id = card.cardName
         override val cardHolderName = card.cardHolderName ?: ""
         override val cardNumber = card.cardNumber ?: ""
         override val cardName = card.cardName ?: ""

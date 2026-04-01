@@ -3,7 +3,10 @@ package com.amshu.expensesense
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "transactions")
+@Entity(
+    tableName = "transactions",
+    indices = [androidx.room.Index(value = ["firebaseId"], unique = true)]
+)
 data class Transaction(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val title: String,

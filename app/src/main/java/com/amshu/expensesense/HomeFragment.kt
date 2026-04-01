@@ -641,9 +641,12 @@ class HomeFragment : Fragment() {
                     val safeContext = requireContext()
                     Thread {
                         val dao = AppDatabase.getDatabase(safeContext).budgetDao()
+                        val localBudgets = dao.getAllBudgets().associateBy { it.monthYear }
                         for (budgetSnapshot in snapshot.children) {
                             val monthYear = budgetSnapshot.key ?: continue
-                            dao.insertBudget(Budget(monthYear, budgetSnapshot.child("totalBudget").getValue(Double::class.java) ?: 0.0, budgetSnapshot.child("remainingBudget").getValue(Double::class.java) ?: 0.0))
+                            if (!localBudgets.containsKey(monthYear)) {
+                                dao.insertBudget(Budget(monthYear, budgetSnapshot.child("totalBudget").getValue(Double::class.java) ?: 0.0, budgetSnapshot.child("remainingBudget").getValue(Double::class.java) ?: 0.0))
+                            }
                         }
                         activity?.runOnUiThread { budgetViewModel.loadCurrentMonthBudget() }
                     }.start()
@@ -658,9 +661,12 @@ class HomeFragment : Fragment() {
                     val safeContext = requireContext()
                     Thread {
                         val dao = AppDatabase.getDatabase(safeContext).accountDao()
+                        val localAccounts = dao.getAllAccounts().associateBy { it.name }
                         for (accountSnapshot in snapshot.children) {
                             val account = accountSnapshot.getValue(Account::class.java)
-                            if (account != null) dao.insertAccount(account)
+                            if (account != null && !localAccounts.containsKey(account.name)) {
+                                dao.insertAccount(account)
+                            }
                         }
                         activity?.runOnUiThread { accountViewModel.loadAccounts() }
                     }.start()

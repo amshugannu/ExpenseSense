@@ -7,11 +7,14 @@ interface CreditCardDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertCreditCard(card: CreditCard)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertAll(cards: List<CreditCard>)
+
     @Query("SELECT * FROM credit_cards ORDER BY orderIndex ASC")
     fun getAllCreditCards(): List<CreditCard>
 
-    @Query("SELECT * FROM credit_cards WHERE id = :id")
-    fun getCreditCardById(id: Int): CreditCard?
+    @Query("SELECT * FROM credit_cards WHERE cardName = :name")
+    fun getCreditCardByName(name: String): CreditCard?
 
     @Update
     fun updateCreditCard(card: CreditCard)

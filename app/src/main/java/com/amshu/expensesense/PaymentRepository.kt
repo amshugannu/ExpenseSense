@@ -99,9 +99,9 @@ class PaymentRepository(
         
         if (account != null) {
             if (isDelete) {
-                Log.d("SYNC_DEBUG", "Before Delete Reverse → " + account.name + " Balance: " + account.balance)
+                if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Before Delete Reverse → " + account.name + " Balance: " + account.balance) }
             } else {
-                Log.d("SYNC_DEBUG", "Before Update → " + account.name + " Balance: " + account.balance)
+                if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Before Update → " + account.name + " Balance: " + account.balance) }
             }
         }
         
@@ -117,9 +117,9 @@ class PaymentRepository(
 
         if (updatedAccount != null) {
             if (isDelete) {
-                Log.d("SYNC_DEBUG", "After Delete Reverse → " + updatedAccount.name + " Balance: " + updatedAccount.balance)
+                if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "After Delete Reverse → " + updatedAccount.name + " Balance: " + updatedAccount.balance) }
             } else {
-                Log.d("SYNC_DEBUG", "After Update → " + updatedAccount.name + " Balance: " + updatedAccount.balance)
+                if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "After Update → " + updatedAccount.name + " Balance: " + updatedAccount.balance) }
             }
         }
 
@@ -150,7 +150,7 @@ class PaymentRepository(
             }
         }
         if (resolved != null) {
-            Log.d("SYNC_DEBUG", "Room Account Read → " + resolved.name + " Balance: " + resolved.balance)
+            if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Room Account Read → " + resolved.name + " Balance: " + resolved.balance) }
         }
         return resolved
     }
@@ -217,7 +217,7 @@ class PaymentRepository(
 
     private fun syncAccountToFirebase(username: String, account: Account?) {
         if (account == null) return
-        Log.d("SYNC_DEBUG", "Updating Firebase → " + account.name + " Balance: " + account.balance)
+        if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Updating Firebase → " + account.name + " Balance: " + account.balance) }
         FirebaseDatabase.getInstance()
             .getReference("users/$username/accounts/${account.name}/balance")
             .setValue(account.balance)

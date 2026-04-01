@@ -143,9 +143,8 @@ class SignUpActivity : AppCompatActivity() {
                         Toast.makeText(this, "Account created successfully", Toast.LENGTH_SHORT).show()
                         if (task.result?.additionalUserInfo?.isNewUser == true) {
                             saveUserToDatabase(user)
-                            goToMainActivity()
                         } else {
-                            goToMainActivity()
+                            clearDatabaseAndNavigate()
                         }
                     }
                 } else {
@@ -171,13 +170,21 @@ class SignUpActivity : AppCompatActivity() {
         
         database.child("users").child(username).setValue(userMap)
             .addOnSuccessListener {
-                goToMainActivity()
+                clearDatabaseAndNavigate()
             }
             .addOnFailureListener {
                 Toast.makeText(this, "Failed to save user data", Toast.LENGTH_SHORT).show()
                 // Still navigate so they aren't stuck, auth succeeded
-                goToMainActivity()
+                clearDatabaseAndNavigate()
             }
+    }
+
+    private fun clearDatabaseAndNavigate() {
+        Thread {
+            val db = AppDatabase.getDatabase(this)
+            db.clearAllTables()
+            runOnUiThread { goToMainActivity() }
+        }.start()
     }
 
     private fun goToMainActivity() {

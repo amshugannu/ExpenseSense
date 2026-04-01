@@ -161,7 +161,7 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun performInitialSyncAndNavigate() {
-        Log.d("SYNC_DEBUG", "Login Success → Starting sync")
+        if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Login Success → Starting sync") }
         val user = auth.currentUser ?: return
         val username = user.email?.substringBefore("@") ?: return
 
@@ -183,10 +183,10 @@ class LoginActivity : AppCompatActivity() {
 
             // Phase 1: Clear Room DB
             db.clearAllTables()
-            Log.d("SYNC_DEBUG", "Room Cleared")
+            if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Room Cleared") }
 
             val database = com.google.firebase.database.FirebaseDatabase.getInstance()
-            val latch = java.util.concurrent.CountDownLatch(3)
+            val latch = java.util.concurrent.CountDownLatch(5)
 
             // 1. Fetch Accounts
             database.getReference("users/$username/accounts").get()
@@ -205,18 +205,18 @@ class LoginActivity : AppCompatActivity() {
                                 }
                                 val account = Account(name = accName, type = type, balance = balance)
                                 if (account != null) {
-                                    Log.d("SYNC_DEBUG", "Firebase Account → ID: " + account.name + ", Name: " + account.name + ", Balance: " + account.balance)
+                                    if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Firebase Account → ID: " + account.name + ", Name: " + account.name + ", Balance: " + account.balance) }
                                 }
                                 firebaseAccounts.add(account)
                             }
-                            Log.d("SYNC_DEBUG", "Firebase Data Fetch Complete")
+                            if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Firebase Data Fetch Complete") }
                             for (acct in firebaseAccounts) {
                                 if (acct != null) {
-                                    Log.d("SYNC_DEBUG", "Inserting into Room → " + acct.name + " Balance: " + acct.balance)
+                                    if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Inserting into Room → " + acct.name + " Balance: " + acct.balance) }
                                 }
                             }
                             db.accountDao().insertAll(firebaseAccounts)
-                            Log.d("SYNC_DEBUG", "Room Insert Complete")
+                            if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Room Insert Complete") }
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
@@ -296,6 +296,42 @@ class LoginActivity : AppCompatActivity() {
                     latch.countDown()
                 }
 
+            // 4. Fetch Debit Cards
+            database.getReference("users/$username/cards/debit_cards").get()
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful && task.result != null && task.result!!.exists()) {
+                        try {
+                            val cards = mutableListOf<DebitCard>()
+                            for (snapshot in task.result!!.children) {
+                                val card = snapshot.getValue(DebitCard::class.java)
+                                if (card != null) cards.add(card)
+                            }
+                            db.debitCardDao().insertAll(cards)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    latch.countDown()
+                }
+
+            // 5. Fetch Credit Cards
+            database.getReference("users/$username/cards/credit_cards").get()
+                .addOnCompleteListener { task ->
+                    if (task.isSuccessful && task.result != null && task.result!!.exists()) {
+                        try {
+                            val cards = mutableListOf<CreditCard>()
+                            for (snapshot in task.result!!.children) {
+                                val card = snapshot.getValue(CreditCard::class.java)
+                                if (card != null) cards.add(card)
+                            }
+                            db.creditCardDao().insertAll(cards)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    latch.countDown()
+                }
+
             try {
                 latch.await()
                 runOnUiThread { goToDashboardActivity() }
@@ -307,21 +343,21 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun createDefaultCashAccount(db: AppDatabase, firebaseDatabase: com.google.firebase.database.FirebaseDatabase, username: String) {
-        Log.d("SYNC_DEBUG", "createDefaultCashAccount() CALLED")
+        if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "createDefaultCashAccount() CALLED") }
 
         val existing = db.accountDao().getAccountByName("Cash")
         if (existing != null) {
-            Log.d("SYNC_DEBUG", "Cash already exists → skipping default creation")
+            if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Cash already exists → skipping default creation") }
             return
         }
 
-        Log.d("SYNC_DEBUG", "New user detected → Creating default account")
+        if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "New user detected → Creating default account") }
         val defaultAccount = Account(name = "Cash", type = "Wallet", balance = 0.0)
-        Log.d("SYNC_DEBUG", "Default Cash Account Created with Balance: " + defaultAccount.balance)
+        if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Default Cash Account Created with Balance: " + defaultAccount.balance) }
         
-        Log.d("SYNC_DEBUG", "Inserting into Room → " + defaultAccount.name + " Balance: " + defaultAccount.balance)
+        if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Inserting into Room → " + defaultAccount.name + " Balance: " + defaultAccount.balance) }
         db.accountDao().insertAccount(defaultAccount)
-        Log.d("SYNC_DEBUG", "Room Insert Complete")
+        if (BuildConfig.DEBUG) { Log.d("SYNC_DEBUG", "Room Insert Complete") }
 
         // Only write to Firebase if it is a new user (which we are if we get here)
         firebaseDatabase.getReference("users/$username/accounts/${defaultAccount.name}").setValue(defaultAccount)

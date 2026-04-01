@@ -5,10 +5,9 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "debit_cards")
 data class DebitCard(
-    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    @PrimaryKey val cardName: String = "",
     val cardHolderName: String? = null,
     val cardNumber: String? = null,
-    val cardName: String? = null,
     val bankName: String? = null,
     val last4Digits: String? = null,
     val linkedBankAccountId: String? = null,
