@@ -17,13 +17,15 @@ class AccountViewModel(private val repository: AccountRepository) : ViewModel() 
 
     fun addAccount(name: String, type: String?, balance: Double) {
         val account = Account(name, type, balance)
-        repository.saveAccount(account)
-        loadAccounts()
+        repository.saveAccount(account) {
+            loadAccounts()
+        }
     }
 
     fun updateBalance(accountName: String, amount: Double) {
-        repository.updateBalance(accountName, amount)
-        loadAccounts()
+        repository.updateBalance(accountName, amount) {
+            loadAccounts()
+        }
     }
 
     fun deleteAccount(account: Account) {

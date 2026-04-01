@@ -7,13 +7,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
-import org.json.JSONObject
-import java.util.concurrent.TimeUnit
 
 sealed class ParsingState {
     object Idle : ParsingState()
@@ -35,15 +28,6 @@ class ReconciliationViewModel : ViewModel() {
     val debugChunksText = MutableLiveData<String>()
     val debugResponsesText = MutableLiveData<String>()
 
-    private val chunksLog = StringBuilder()
-    private val responsesLog = StringBuilder()
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(100, TimeUnit.SECONDS)
-        .writeTimeout(60, TimeUnit.SECONDS)
-        .build()
-
     data class TransactionBlock(val lines: MutableList<String> = mutableListOf()) {
         fun getCleanedText(): String {
             return lines.joinToString(" ")
@@ -62,102 +46,54 @@ class ReconciliationViewModel : ViewModel() {
 
     fun parseTransactions(rawText: String) {
         _parsingState.postValue(ParsingState.Loading)
-        Log.d("ReconViewModel", "Upgraded pipeline started")
+        Log.d("ReconViewModel", "Local rule-based pipeline started")
 
         viewModelScope.launch(Dispatchers.IO) {
+            val startTime = System.currentTimeMillis()
             try {
-                // STAGE 1: TRANSACTION SECTION DETECTION
+                Log.d("ReconViewModel", "Parsing started")
                 val allLines = rawText.split("\n").map { it.trim() }.filter { it.isNotEmpty() }
-                Log.d("Recon", "Total lines: ${allLines.size}")
-
+                
                 val transactionLines = detectTransactionSection(allLines)
-                Log.d("Recon", "Transaction lines: ${transactionLines.size}")
                 debugSectionText.postValue(transactionLines.joinToString("\n"))
 
-                // Fetch API Key (Needed for both standard and fallback)
-                val apiKey = BuildConfig.GEMINI_API_KEY_2
-                if (apiKey.isNullOrEmpty()) {
-                    postError("Gemini API key is missing.")
-                    return@launch
-                }
-
-                // STAGE 2 & 3: BLOCK CONSTRUCTION & CLEANING
-                val transactionSectionSize = transactionLines.size
-                Log.d("Recon", "Transaction section size: $transactionSectionSize")
-
                 val blocks = constructTransactionBlocks(transactionLines)
+                debugBlocksText.postValue(blocks.joinToString("\n---\n") { it.getCleanedText() })
+                Log.d("ReconViewModel", "Total blocks: ${blocks.size}")
+
+                val parsedList = mutableListOf<ReconciliationTransaction>()
+                var unknownCount = 0
+
+                for (block in blocks) {
+                    if (block.lines.isEmpty()) continue
+
+                    val extractedDate = extractDateValue(block.lines)
+                    val extractedAmountObj = extractAmountAndLine(block.lines)
+                    
+                    if (extractedDate.isNullOrEmpty() || extractedAmountObj == null) {
+                        continue
+                    }
+
+                    val description = extractDescription(block.lines, extractedDate, extractedAmountObj.rawText)
+                    val type = classifyType(description, extractedAmountObj.rawText)
+                    
+                    if (type == "unknown") unknownCount++
+
+                    parsedList.add(ReconciliationTransaction(
+                        date = extractedDate,
+                        description = description,
+                        amount = Math.abs(extractedAmountObj.value),
+                        type = type
+                    ))
+                }
+
+                val finalResults = parsedList.distinct().sortedByDescending { it.date }
                 
-                // FILTER: Only keep blocks with an amount line
-                val amountRegex = Regex("""\d+\.\d{2}""")
-                val validBlocks = blocks.filter { block -> 
-                    block.lines.any { it.contains(amountRegex) } 
-                }
+                Log.d("ReconViewModel", "Parsed transactions: ${finalResults.size}")
+                Log.d("ReconViewModel", "Unknown type count: $unknownCount")
+                Log.d("ReconViewModel", "Parsing completed in ${System.currentTimeMillis() - startTime}ms")
 
-                Log.d("Recon", "Blocks BEFORE validation: ${blocks.size}")
-                Log.d("Recon", "Blocks AFTER validation: ${validBlocks.size}")
-
-                if (validBlocks.isEmpty()) {
-                    Log.d("Recon", "No valid blocks -> fallback triggered")
-                    val fallbackText = transactionLines.joinToString("\n")
-                    debugBlocksText.postValue(fallbackText + "\n (FALLBACK: RAW SECTION)")
-                    
-                    val results = processChunkWithGemini(fallbackText, apiKey, 1)
-                    val finalResults = finalizeTransactions(results)
-                    
-                    if (finalResults.isNotEmpty()) {
-                        Log.d("ReconViewModel", "Fallback Success: ${finalResults.size} transactions")
-                        _parsingState.postValue(ParsingState.Success(finalResults))
-                    } else {
-                        postError("No transactions detected in this statement")
-                    }
-                    return@launch
-                }
-
-                val cleanedBlocks = validBlocks.map { it.getCleanedText() }
-                debugBlocksText.postValue(cleanedBlocks.joinToString("\n---\n"))
-
-                // STAGE 4: HEADER HANDLING
-                val header = detectHeader(allLines, transactionLines)
-
-                // STAGE 5: CHUNKING
-                val chunks = createChunks(cleanedBlocks, header)
-                debugChunksText.postValue(chunks.joinToString("\n\n=== CHUNK ===\n\n"))
-
-                // STAGE 6 & 7: AI PARSING & RESPONSE HANDLING
-                chunksLog.clear()
-                responsesLog.clear()
-                val allTransactions = mutableListOf<ReconciliationTransaction>()
-
-                for ((index, chunk) in chunks.withIndex()) {
-                    Log.d("ReconViewModel", "Processing chunk ${index + 1}/${chunks.size}")
-                    val results = processChunkWithGemini(chunk, apiKey, index + 1)
-                    allTransactions.addAll(results)
-                }
-
-                // AI FALLBACK: If total results are zero, use local regex extraction from validBlocks
-                if (allTransactions.isEmpty()) {
-                    Log.d("Recon", "AI parsing yielded 0 results -> using local regex fallback")
-                    for (block in validBlocks) {
-                        allTransactions.add(ReconciliationTransaction(
-                            date = extractDate(block),
-                            description = block.getCleanedText(),
-                            amount = extractAmount(block),
-                            type = "unknown"
-                        ))
-                    }
-                }
-
-                // STAGE 8: FINAL CLEANUP
-                val finalResults = finalizeTransactions(allTransactions)
-
-                if (finalResults.isNotEmpty()) {
-                    Log.d("ReconViewModel", "Success: ${finalResults.size} transactions")
-                    _parsingState.postValue(ParsingState.Success(finalResults))
-                } else {
-                    // One final effort: if everything failed, it likely means no transactions.
-                    // Instead of a hard error, show whatever we have or inform.
-                    _parsingState.postValue(ParsingState.Success(emptyList()))
-                }
+                _parsingState.postValue(ParsingState.Success(finalResults))
 
             } catch (e: Exception) {
                 Log.e("ReconViewModel", "Pipeline failure", e)
@@ -166,100 +102,191 @@ class ReconciliationViewModel : ViewModel() {
         }
     }
 
+    data class ExtractedAmount(val value: Double, val rawText: String, val lineMatch: String)
+
+    private fun extractAmountAndLine(lines: List<String>): ExtractedAmount? {
+        // Enforce user regex (using decimal part mandatory to avoid picking dates)
+        val amountRegex = Regex("""-?\d{1,3}(?:,\d{3})*(?:\.\d{2})""")
+        
+        val allNumbers = mutableListOf<ExtractedAmount>()
+        
+        for (line in lines) {
+            val matches = amountRegex.findAll(line)
+            for (match in matches) {
+                val rawStr = match.value
+                val cleanStr = rawStr.replace(",", "")
+                val value = cleanStr.toDoubleOrNull()
+                if (value != null) {
+                    allNumbers.add(ExtractedAmount(value, rawStr, line))
+                }
+            }
+        }
+        
+        if (allNumbers.isEmpty()) return null
+        if (allNumbers.size == 1) return allNumbers[0]
+        
+        // Heuristic fallback matching user rules
+        if (allNumbers.size == 2) {
+            return allNumbers[0] // first = transaction amount
+        } else {
+            return allNumbers[1] // middle often = amount
+        }
+    }
+
+    private fun extractDateValue(lines: List<String>): String? {
+        val dateRegex = Regex("""(\d{2}-\d{2}-\d{4})|(\d{2}/\d{2}/\d{4})|(\d{4}-\d{2}-\d{2})""")
+        for (line in lines) {
+            val match = dateRegex.find(line)
+            if (match != null) {
+                val rawDate = match.value
+                val cleanDate = rawDate.replace("/", "-")
+                if (cleanDate.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) {
+                    return cleanDate
+                } else {
+                    val parts = cleanDate.split("-")
+                    // DD-MM-YYYY to YYYY-MM-DD
+                    return "${parts[2]}-${parts[1]}-${parts[0]}"
+                }
+            }
+        }
+        return null
+    }
+
+    private fun extractDescription(lines: List<String>, dateStr: String, amountStr: String): String {
+        val cleanLines = mutableListOf<String>()
+        val dateSplit = dateStr.split("-")
+        val altDate1 = "${dateSplit[2]}/${dateSplit[1]}/${dateSplit[0]}"
+        val altDate2 = "${dateSplit[2]}-${dateSplit[1]}-${dateSplit[0]}"
+        
+        for (line in lines) {
+            var cleanLine = line
+                .replace(dateStr, "")
+                .replace(altDate1, "")
+                .replace(altDate2, "")
+                .replace(amountStr, "")
+            cleanLines.add(cleanLine)
+        }
+        val combined = cleanLines.joinToString(" ")
+        // Remove extra spaces and symbols, lowercase
+        val noSymbols = combined.replace(Regex("""[^a-zA-Z0-9\s]"""), " ")
+        return noSymbols.replace(Regex("""\s+"""), " ").trim().lowercase()
+    }
+
+    private val creditKeywords = listOf(
+        "credit", "cr", "deposit", "dep", "received", "recv",
+        "inward", "salary", "refund", "cashback",
+        "interest", "int", "dividend",
+        "reversal", "rev", "return", "incoming", "credited"
+    )
+
+    private val debitKeywords = listOf(
+        "debit", "dr", "withdrawal", "wdl", "withdraw",
+        "purchase", "spent", "charge", "charges", "fee",
+        "atm wdl", "pos", "emi", "loan",
+        "subscription", "insurance", "tax", "gst",
+        "rent", "debited"
+    )
+
+    private fun classifyType(description: String, rawAmount: String): String {
+        if (rawAmount.contains("-")) return "debit"
+        
+        var creditScore = 0
+        var debitScore = 0
+        
+        creditKeywords.forEach {
+            if (description.contains(it)) creditScore++
+        }
+        
+        debitKeywords.forEach {
+            if (description.contains(it)) debitScore++
+        }
+        
+        if (creditScore > debitScore) return "credit"
+        if (debitScore > creditScore) return "debit"
+        return "unknown"
+    }
+
     private val datePatterns = listOf(
         Regex("""^\d{2}/\d{2}/\d{4}"""),
         Regex("""^\d{2}-\d{2}-\d{4}""")
     )
 
     private fun isTransactionStart(line: String): Boolean {
-        return datePatterns.any { it.matches(line.trim().take(10)) || it.containsMatchIn(line.trim().take(25)) }
+        // Keeping logic matching existing behavior to avoid regressing section detection
+        return datePatterns.any { it.matches(line.trim().take(10)) || it.containsMatchIn(line.trim().take(25)) } 
+            || Regex("""(\d{2}-\d{2}-\d{4})|(\d{2}/\d{2}/\d{4})|(\d{4}-\d{2}-\d{2})""").containsMatchIn(line.trim().take(25))
     }
 
-    private fun hasAmountNearby(lines: List<String>, index: Int): Boolean {
-        val amountRegex = Regex("""\d+\.\d{2}""")
-        val endPeek = minOf(index + 5, lines.size)
-        // Check current line and next 5 lines
-        return lines.subList(index, endPeek).any { amountRegex.containsMatchIn(it) }
-    }
+    private val detectionDateRegex = Regex(
+        """(\d{2}-\d{2}-\d{4})|(\d{2}/\d{2}/\d{4})|(\d{4}-\d{2}-\d{2})|(\d{1,2}\s[A-Za-z]{3}\s\d{4})"""
+    )
+    private val detectionAmountRegex = Regex("""\d{1,3}(,\d{3})*(\.\d{2})?""")
 
-    private val headerKeywords = listOf(
-        "date", "transaction", "particulars", "description",
-        "details", "debit", "credit", "balance",
-        "amount", "withdrawal", "deposit"
+    private val sectionHeaderKeywords = listOf(
+        "date", "transaction", "description", "details",
+        "particulars", "debit", "credit", "balance", "amount"
     )
 
-    private fun isHeaderLine(line: String): Boolean {
-        val lowerLine = line.lowercase()
-        return headerKeywords.count { lowerLine.contains(it) } >= 3
+    private fun isSectionHeader(line: String): Boolean {
+        val lower = line.lowercase()
+        return sectionHeaderKeywords.count { lower.contains(it) } >= 3
     }
 
-    private val footerKeywords = listOf(
-        "closing balance", "opening balance", "summary",
-        "statement summary", "bank charges",
-        "registered office", "gst",
-        "customer care", "contact", "support"
-    )
+    private fun isTransactionLike(line: String): Boolean {
+        val lower = line.lowercase()
+        val hasDate = detectionDateRegex.containsMatchIn(lower)
+        val hasAmount = detectionAmountRegex.containsMatchIn(lower)
 
-    private fun isFooterLine(line: String): Boolean {
-        val lowerLine = line.lowercase()
-        return footerKeywords.any { lowerLine.contains(it) }
+        val isDateRange = lower.contains("-") && lower.count { it == '-' } >= 2 && !hasAmount
+        val isNoise = listOf(
+            "account", "customer", "ifsc", "branch", "gst",
+            "page", "statement", "address"
+        ).any { lower.contains(it) }
+
+        return hasDate && hasAmount && !isDateRange && !isNoise
     }
 
     private fun detectTransactionSection(lines: List<String>): List<String> {
-        var headerFound = false
-        var startIndex = 0
+        val WINDOW_SIZE = 6
+        var startIndex = -1
 
-        // 1. Header Detection (Start Logic)
-        for (i in lines.indices) {
-            val current = lines[i].lowercase()
-            val next = lines.getOrNull(i + 1)?.lowercase() ?: ""
-            val combined = "$current $next"
+        for (i in 0 until lines.size - WINDOW_SIZE) {
+            val window = lines.subList(i, i + WINDOW_SIZE)
+            val headerDetected = window.any { isSectionHeader(it) }
+            val transactionCount = window.count { isTransactionLike(it) }
 
-            val keywordMatches = headerKeywords.count { combined.contains(it) }
-
-            if (!headerFound && keywordMatches >= 3) {
-                headerFound = true
-                startIndex = i + 1 // Transactions start AFTER header
+            if (headerDetected && transactionCount >= 2) {
+                startIndex = i
                 break
             }
         }
 
-        if (!headerFound) return lines // Fallback if no header found
+        if (startIndex == -1) {
+            startIndex = lines.indexOfFirst { isTransactionLike(it) }
+        }
 
-        // 2. Soft End Detection (Footer Logic)
-        var footerCount = 0
-        var endIndex = lines.size
+        if (startIndex == -1) {
+            startIndex = 0
+        }
+
+        var refinedStart = startIndex
 
         for (i in startIndex until lines.size) {
-            val line = lines[i].lowercase()
-
-            if (isFooterLine(line)) {
-                footerCount++
-            } else {
-                footerCount = 0
-            }
-
-            if (footerCount >= 3) {
-                endIndex = i - 2 // Go back to where footer started
+            if (isTransactionLike(lines[i])) {
+                refinedStart = i
                 break
             }
         }
 
-        // 3. Extraction & Cleaning
-        val transactionLines = lines.subList(startIndex, endIndex)
-        val noiseKeywords = listOf("page", "account number", "ifsc", "branch", "customer id")
-
-        return transactionLines.filter { line ->
-            val lowerLine = line.lowercase()
-            
-            // Skip repeated headers
-            if (isHeaderLine(lowerLine)) return@filter false
-            
-            // Skip noise lines
-            if (noiseKeywords.any { lowerLine.contains(it) }) return@filter false
-            
-            true
+        Log.d("START_DETECTION", "Initial startIndex: $startIndex")
+        Log.d("START_DETECTION", "Refined startIndex: $refinedStart")
+        Log.d("START_DETECTION", "First 5 lines from start:")
+        
+        lines.subList(refinedStart, kotlin.math.min(refinedStart + 5, lines.size)).forEach {
+            Log.d("START_DETECTION", it)
         }
+
+        return lines.subList(refinedStart, lines.size)
     }
 
     private fun constructTransactionBlocks(lines: List<String>): List<TransactionBlock> {
@@ -271,7 +298,6 @@ class ReconciliationViewModel : ViewModel() {
             val line = lines[i].trim()
             if (isTransactionStart(line)) {
                 startCount++
-                // close previous block
                 currentBlock?.let { blocks.add(it) }
 
                 currentBlock = TransactionBlock()
@@ -281,154 +307,10 @@ class ReconciliationViewModel : ViewModel() {
             }
         }
 
-        // add last block
         currentBlock?.let { blocks.add(it) }
 
-        Log.d("Recon", "Detected starts: $startCount")
+        Log.d("ReconViewModel", "Detected starts: \$startCount")
         return blocks
-    }
-
-    private fun detectHeader(allLines: List<String>, transactionLines: List<String>): String {
-        val defaultHeader = "Date | Description | Debit | Credit | Balance"
-        
-        if (transactionLines.isEmpty()) return defaultHeader
-        
-        val firstTxLine = transactionLines[0]
-        val txStartIndexInAll = allLines.indexOf(firstTxLine)
-        
-        if (txStartIndexInAll > 0) {
-            val potentialHeader = allLines[txStartIndexInAll - 1]
-            // Heuristic: 3+ tokens, no amounts (dots/digits alone), reasonable length
-            val tokens = potentialHeader.split(Regex("\\s+")).filter { it.length > 2 }
-            if (tokens.size >= 3 && potentialHeader.length in 20..120 && !potentialHeader.contains(Regex("\\d+\\.\\d{2}"))) {
-                return potentialHeader
-            }
-        }
-        
-        return defaultHeader
-    }
-
-    private fun createChunks(blocks: List<String>, header: String): List<String> {
-        // Max 10 transactions per chunk, reduce if tokens large (lines are long)
-        val chunkSize = if (blocks.any { it.length > 200 }) 7 else 10
-        return blocks.chunked(chunkSize).map { chunk ->
-            header + "\n" + chunk.joinToString("\n")
-        }
-    }
-
-    private fun processChunkWithGemini(chunkText: String, apiKey: String, chunkIndex: Int): List<ReconciliationTransaction> {
-        val parsedList = mutableListOf<ReconciliationTransaction>()
-        try {
-            val prompt = """
-                Extract financial transactions from the following bank statement data.
-                Rules:
-                - Return ONLY valid JSON array
-                - Map fields: date (YYYY-MM-DD), description, amount (num), type (debit/credit)
-                JSON:
-                $chunkText
-            """.trimIndent()
-
-            val jsonBody = JSONObject().apply {
-                put("contents", JSONArray().put(JSONObject().apply {
-                    put("parts", JSONArray().put(JSONObject().apply {
-                        put("text", prompt)
-                    }))
-                }))
-            }
-
-            val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey")
-                .post(jsonBody.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
-                .build()
-
-            val response = client.newCall(request).execute()
-            val responseBodyString = response.body?.string()
-            
-            responsesLog.append("--- CHUNK $chunkIndex ---\n")
-
-            if (response.isSuccessful && responseBodyString != null) {
-                val jsonResponse = JSONObject(responseBodyString)
-                val aiText = jsonResponse.optJSONArray("candidates")
-                    ?.optJSONObject(0)
-                    ?.optJSONObject("content")
-                    ?.optJSONArray("parts")
-                    ?.optJSONObject(0)
-                    ?.optString("text") ?: ""
-
-                val cleanedResponse = aiText.trim()
-                    .replace("`json", "")
-                    .replace("`", "")
-                    .trim()
-
-                Log.d("Recon", "CLEANED AI RESPONSE: $cleanedResponse")
-                responsesLog.append("RAW: ").append(maskSensitiveData(aiText)).append("\n")
-                responsesLog.append("CLEANED: ").append(maskSensitiveData(cleanedResponse)).append("\n\n")
-                debugResponsesText.postValue(responsesLog.toString())
-
-                try {
-                    val jsonArray = JSONArray(cleanedResponse)
-                    for (i in 0 until jsonArray.length()) {
-                        val item = jsonArray.optJSONObject(i) ?: continue
-                        val rawDate = item.optString("date", "")
-                        val rawDesc = item.optString("description", "")
-                        val rawAmount = item.optDouble("amount", 0.0)
-                        val rawType = item.optString("type", "unknown").lowercase()
-
-                        if (rawDate.isNotEmpty() && rawAmount > 0.0) {
-                            parsedList.add(ReconciliationTransaction(
-                                normalizeDate(rawDate),
-                                normalizeDescription(rawDesc),
-                                rawAmount,
-                                if (rawType.contains("credit")) "credit" else "debit"
-                            ))
-                        }
-                    }
-                } catch (e: Exception) {
-                    Log.e("Recon", "JSON parse error", e)
-                }
-            } else {
-                responsesLog.append("API ERROR: ${response.code}\n\n")
-                debugResponsesText.postValue(responsesLog.toString())
-            }
-        } catch (e: Exception) {
-            Log.e("ReconViewModel", "Gemini chunk failure", e)
-        }
-        return parsedList
-    }
-
-    private fun extractDate(block: TransactionBlock): String {
-        val dateRegex = Regex("""\d{2}[-/]\d{2}[-/]\d{4}""")
-        val firstLine = block.lines.firstOrNull() ?: ""
-        val match = dateRegex.find(firstLine)
-        return match?.value ?: ""
-    }
-
-    private fun extractAmount(block: TransactionBlock): Double {
-        val amountRegex = Regex("""\d+,\d+\.\d{2}|\d+\.\d{2}""")
-        for (line in block.lines.reversed()) { // Try from end (usually balance/amount)
-            val match = amountRegex.find(line.replace(",", ""))
-            if (match != null) return match.value.toDoubleOrNull() ?: 0.0
-        }
-        return 0.0
-    }
-
-    private fun finalizeTransactions(txs: List<ReconciliationTransaction>): List<ReconciliationTransaction> {
-        return txs.distinct()
-            .filter { it.amount > 0 && it.description.isNotEmpty() }
-            .sortedByDescending { it.date }
-    }
-
-    private fun normalizeDate(raw: String): String {
-        return raw.replace(Regex("[^0-9-]"), "")
-    }
-
-    private fun normalizeDescription(raw: String): String {
-        return raw.trim().replace(Regex("\\s+"), " ")
-    }
-
-    private fun maskSensitiveData(input: String): String {
-        val regex = Regex("""\b\d{5,}\b""")
-        return input.replace(regex, "***")
     }
 
     private fun postError(msg: String) {

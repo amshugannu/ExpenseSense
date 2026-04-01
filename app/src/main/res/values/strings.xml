@@ -2,4 +2,16 @@
     <string name="app_name">Expense Sense</string>
     <!-- Replace with actual web client ID from Firebase Google Sign-In setup -->
     <string name="default_web_client_id">YOUR_WEB_CLIENT_ID_HERE</string>
+
+    <!-- Home Screen Redesign -->
+    <string name="greeting_evening">Good Evening,</string>
+    <string name="username_placeholder">Amshu</string>
+    <string name="budget_overview">Budget Overview</string>
+    <string name="quick_actions">Quick Actions</string>
+    <string name="see_all">See All</string>
+    <string name="transactions">Transactions</string>
+    <string name="action_scan_receipt">Scan Receipt</string>
+    <string name="action_upload_statement">Upload Statement</string>
+    <string name="action_add_expense">Add Expense</string>
+    <string name="action_view_insights">View Insights</string>
 </resources>

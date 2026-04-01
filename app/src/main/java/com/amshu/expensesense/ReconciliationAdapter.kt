@@ -31,12 +31,19 @@ class ReconciliationAdapter(
         
         holder.tvType.text = tx.type.uppercase()
 
-        if (tx.type == "credit") {
-            holder.tvAmount.text = "+$${String.format("%.2f", tx.amount)}"
-            holder.tvAmount.setTextColor(Color.parseColor("#43A047")) // Green
-        } else {
-            holder.tvAmount.text = "-$${String.format("%.2f", tx.amount)}"
-            holder.tvAmount.setTextColor(Color.parseColor("#E53935")) // Red
+        when (tx.type.lowercase()) {
+            "credit" -> {
+                holder.tvAmount.text = "+$${String.format("%.2f", tx.amount)}"
+                holder.tvAmount.setTextColor(Color.parseColor("#43A047")) // Green
+            }
+            "debit" -> {
+                holder.tvAmount.text = "-$${String.format("%.2f", tx.amount)}"
+                holder.tvAmount.setTextColor(Color.parseColor("#E53935")) // Red
+            }
+            else -> {
+                holder.tvAmount.text = "?$${String.format("%.2f", tx.amount)}"
+                holder.tvAmount.setTextColor(Color.parseColor("#9E9E9E")) // Gray
+            }
         }
     }
 

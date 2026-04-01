@@ -9,4 +9,11 @@
     <color name="color_bg_beige">#F5EAE1</color>
     <color name="color_text_gray">#888888</color>
     <color name="color_teal_primary">#529E97</color>
+
+    <!-- Home Screen Redesign Colors -->
+    <color name="header_start">#0D1B2A</color>
+    <color name="header_end">#1B263B</color>
+    <color name="bg_light">#F5F7FA</color>
+    <color name="text_light_gray">#C0C0C0</color>
+    <color name="progress_track">#E0E5EC</color>
 </resources>
