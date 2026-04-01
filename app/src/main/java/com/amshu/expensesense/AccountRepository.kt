@@ -53,7 +53,7 @@ class AccountRepository(private val accountDao: AccountDao) {
         }.start()
     }
 
-    fun updateBalance(accountName: String, amount: Double) {
+    fun updateBalance(accountName: String, amount: Double, onComplete: () -> Unit = {}) {
         Thread {
             val account = accountDao.getAccountByName(accountName)
             if (account != null) {
@@ -68,6 +68,9 @@ class AccountRepository(private val accountDao: AccountDao) {
                     firebaseDatabase.getReference("users/$username/accounts/$accountName/balance")
                         .setValue(newBalance)
                 }
+                onComplete()
+            } else {
+                onComplete()
             }
         }.start()
     }
