@@ -15,6 +15,9 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.recyclerview.widget.ItemTouchHelper
+import com.google.android.material.snackbar.Snackbar
+import android.graphics.Canvas
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -44,6 +47,7 @@ class HomeFragment : Fragment() {
 
     private var transactionList = mutableListOf<Transaction>()
     private lateinit var adapter: TransactionAdapter
+    private lateinit var cardSwipeTooltip: CardView
 
     // Card Stack
     private lateinit var cardStackContainer: FrameLayout
@@ -77,13 +81,44 @@ class HomeFragment : Fragment() {
     private val leftStack = mutableListOf<View>()
     private val leftStackModels = mutableListOf<CardUIModel>()
     private lateinit var leftStackContainer: FrameLayout
-    
+
     // Reordering State
     private var isReordering = false
     private var draggedViewTag: String? = null
     private var dragStartX = 0f
     private var dragStartY = 0f
     private var dragInitialTranslationY = 0f
+    private var isLastUpdateFromFirebase = false
+
+    private val detailsLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            val action = result.data?.getStringExtra("action")
+            if (action == "delete") {
+                val id = result.data?.getIntExtra("id", -1) ?: -1
+                val deletedItem = transactionList.find { it.id == id }
+                if (deletedItem != null) {
+                    val position = adapter.records.indexOf(deletedItem)
+                    if (position != -1) {
+                        adapter.removeItem(position)
+                        val snackbar = com.google.android.material.snackbar.Snackbar.make(rvTransactions, "${deletedItem.title} removed", com.google.android.material.snackbar.Snackbar.LENGTH_LONG)
+                        snackbar.setAction("UNDO") {
+                            adapter.restoreItem(deletedItem, position)
+                        }
+                        snackbar.addCallback(object : com.google.android.material.snackbar.Snackbar.Callback() {
+                            override fun onDismissed(transientBottomBar: com.google.android.material.snackbar.Snackbar?, event: Int) {
+                                if (event != DISMISS_EVENT_ACTION) {
+                                    deleteTransaction(deletedItem)
+                                }
+                            }
+                        })
+                        snackbar.show()
+                    }
+                }
+            } else if (action == "edit") {
+                loadFromRoom()
+            }
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -99,6 +134,7 @@ class HomeFragment : Fragment() {
         tvTotal = view.findViewById(R.id.tvTotal)
         tvMonthTotal = view.findViewById(R.id.tvMonthTotal)
         tvEmpty = view.findViewById(R.id.tvEmpty)
+        cardSwipeTooltip = view.findViewById(R.id.cardSwipeTooltip)
         cardStackContainer = view.findViewById(R.id.cardStackContainer)
         leftStackContainer = view.findViewById(R.id.leftStackContainer)
 
@@ -154,6 +190,10 @@ class HomeFragment : Fragment() {
         view.findViewById<View>(R.id.cardUploadStatement).setOnClickListener {
             startActivity(Intent(requireContext(), StatementReconciliationActivity::class.java))
         }
+
+        view.findViewById<View>(R.id.tvSeeAllTransactions).setOnClickListener {
+            startActivity(Intent(requireContext(), TransactionsActivity::class.java))
+        }
     }
 
     private fun setupBackgroundSwipe() {
@@ -164,11 +204,13 @@ class HomeFragment : Fragment() {
                     startX = event.rawX
                     true
                 }
+
                 MotionEvent.ACTION_UP -> {
                     val deltaX = startX - event.rawX
                     if (deltaX < -150) restoreLastCard()
                     true
                 }
+
                 else -> false
             }
         }
@@ -194,7 +236,7 @@ class HomeFragment : Fragment() {
         accountViewModel.accounts.observe(viewLifecycleOwner) { accounts ->
             accountList.clear()
             accountList.addAll(accounts)
-            
+
             // Update top-right Cash display
             val cashAccount = accounts.find { it.name.equals("Cash", ignoreCase = true) }
             tvHeaderCashBalance.text = "₹${String.format("%.0f", cashAccount?.balance ?: 0.0)}"
@@ -214,7 +256,13 @@ class HomeFragment : Fragment() {
         val factory = CardViewModelFactory(repository)
         cardViewModel = ViewModelProvider(this, factory).get(CardViewModel::class.java)
 
-        cardViewModel.cards.observe(viewLifecycleOwner) { cards ->
+        cardViewModel.cards.observe(viewLifecycleOwner) { pair ->
+            val cards = pair.first
+            isLastUpdateFromFirebase = pair.second
+            val sourceText = if (isLastUpdateFromFirebase) "FIREBASE" else "ROOM"
+            
+            android.util.Log.d("FLOW_DEBUG", "Cards observer triggered from $sourceText source")
+
             if (activeStack.isEmpty() && hiddenStack.isEmpty()) {
                 activeStack.addAll(cards.take(3))
                 hiddenStack.addAll(cards.drop(3))
@@ -253,7 +301,7 @@ class HomeFragment : Fragment() {
         for (i in (cards.size - 1) downTo 0) {
             val model = cards[i]
             var cardView = cardStackContainer.findViewWithTag<CardView>(model.cardNumber)
-            
+
             if (cardView == null) {
                 cardView = LayoutInflater.from(requireContext())
                     .inflate(R.layout.card_item, cardStackContainer, false) as CardView
@@ -300,7 +348,15 @@ class HomeFragment : Fragment() {
         }
     }
 
-    private fun bindCardData(cardView: View, model: CardUIModel, accountBalances: Map<String, Double>) {
+    private fun bindCardData(
+        cardView: View,
+        model: CardUIModel,
+        accountBalances: Map<String, Double>
+    ) {
+        val source = if (isLastUpdateFromFirebase) "FIREBASE" else "ROOM"
+        val balanceVal = if (model is CardUIModel.Credit) model.availableLimit else accountBalances[(model as? CardUIModel.Debit)?.linkedBankAccountId] ?: 0.0
+        android.util.Log.d("FLOW_DEBUG", "UI updated from $source with card balance: $balanceVal")
+        
         val ivCardBg = cardView.findViewById<ImageView>(R.id.ivCardBg)
         val tvCardNumber = cardView.findViewById<TextView>(R.id.tvCardNumberDisplay)
         val tvCardHolder = cardView.findViewById<TextView>(R.id.tvCardHolderDisplay)
@@ -311,14 +367,25 @@ class HomeFragment : Fragment() {
 
         when (model) {
             is CardUIModel.Credit -> {
-                val resId = resources.getIdentifier(model.drawableName ?: "", "drawable", requireContext().packageName)
+                val resId = resources.getIdentifier(
+                    model.drawableName ?: "",
+                    "drawable",
+                    requireContext().packageName
+                )
                 ivCardBg.setImageResource(if (resId != 0) resId else R.drawable.defaultcreditcard)
+                android.util.Log.d("UI_DEBUG", "Setting balance on UI (Credit Card ${model.cardName}): ${model.availableLimit}")
                 tvBalance.text = "Avl: ₹${String.format("%.2f", model.availableLimit)}"
             }
+
             is CardUIModel.Debit -> {
-                val resId = resources.getIdentifier(model.drawableName ?: "", "drawable", requireContext().packageName)
+                val resId = resources.getIdentifier(
+                    model.drawableName ?: "",
+                    "drawable",
+                    requireContext().packageName
+                )
                 ivCardBg.setImageResource(if (resId != 0) resId else R.drawable.defaultdebitcard)
                 val balance = accountBalances[model.linkedBankAccountId] ?: 0.0
+                android.util.Log.d("UI_DEBUG", "Setting balance on UI (Debit Card ${model.cardName} / Account ${model.linkedBankAccountId}): $balance")
                 tvBalance.text = "Bal: ₹${String.format("%.2f", balance)}"
             }
         }
@@ -352,21 +419,22 @@ class HomeFragment : Fragment() {
                     dragHandler.postDelayed(dragRunnable!!, 500)
                     true
                 }
+
                 MotionEvent.ACTION_MOVE -> {
                     val deltaX = event.rawX - dragStartX
                     val deltaY = event.rawY - dragStartY
 
                     if (isReordering && v.tag == draggedViewTag) {
                         v.parent.requestDisallowInterceptTouchEvent(true) // 🔒 Keep parent locked
-                        
+
                         val density = resources.displayMetrics.density
                         v.translationY = dragInitialTranslationY + deltaY
-                        
+
                         // Limit dragging to within reasonable range
-                        val maxUp = - (activeStack.size * 60 * density)
+                        val maxUp = -(activeStack.size * 60 * density)
                         val maxDown = 150 * density
                         v.translationY = v.translationY.coerceIn(maxUp, maxDown)
-                        
+
                         val currentIdx = activeStack.indexOfFirst { it.cardNumber == v.tag }
                         if (currentIdx != -1) {
                             val targetX = currentIdx * 24 * density
@@ -388,6 +456,7 @@ class HomeFragment : Fragment() {
                     }
                     true
                 }
+
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     dragRunnable?.let { dragHandler.removeCallbacks(it) }
 
@@ -413,6 +482,7 @@ class HomeFragment : Fragment() {
                     v.performClick()
                     true
                 }
+
                 else -> false
             }
         }
@@ -423,7 +493,7 @@ class HomeFragment : Fragment() {
         if (currentIdx == -1) return
         val density = resources.displayMetrics.density
         val currentY = draggedView.translationY
-        
+
         if (currentIdx > 0) {
             val neighborY = -(currentIdx - 1) * 14 * density
             val threshold = (neighborY + (-(currentIdx) * 14 * density)) / 2
@@ -483,7 +553,13 @@ class HomeFragment : Fragment() {
                     view.scaleX = 0.92f
                     view.scaleY = 0.92f
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        view.setRenderEffect(RenderEffect.createBlurEffect(12f, 12f, Shader.TileMode.CLAMP))
+                        view.setRenderEffect(
+                            RenderEffect.createBlurEffect(
+                                12f,
+                                12f,
+                                Shader.TileMode.CLAMP
+                            )
+                        )
                     }
                     ViewCompat.setElevation(view, 0f)
                     leftStackContainer.addView(view)
@@ -584,6 +660,8 @@ class HomeFragment : Fragment() {
 
     override fun onResume() {
         super.onResume()
+        android.util.Log.d("FLOW_DEBUG", "Home screen loading (onResume)...")
+        android.util.Log.d("FLOW_DEBUG", "Triggering lifecycle load from Room & Firebase sync")
         loadFromRoom()
         syncWithFirebase()
         budgetViewModel.loadCurrentMonthBudget()
@@ -592,22 +670,71 @@ class HomeFragment : Fragment() {
     }
 
     private fun loadFromRoom() {
+        android.util.Log.d("FLOW_DEBUG", "Triggering local Home data fetch from Room...")
         Thread {
-            val records = AppDatabase.getDatabase(requireContext()).transactionDao().getAllTransactions()
+            val db = AppDatabase.getDatabase(requireContext())
+            val records = db.transactionDao().getAllTransactions()
             val sortedList = records.sortedByDescending { it.timestamp }
+            
+            val creditCards = db.creditCardDao().getAllCreditCards()
+            val debitCards = db.debitCardDao().getAllDebitCards()
+            val cardMap = mutableMapOf<String, String>()
+            creditCards.forEach { card ->
+                val shortName = card.cardName.split(" ").firstOrNull()?.uppercase() ?: card.cardName
+                val last4 = card.last4Digits ?: ""
+                cardMap[card.cardName] = if (last4.isNotBlank()) "$shortName $last4" else shortName
+            }
+            debitCards.forEach { card ->
+                val shortName = card.cardName.split(" ").firstOrNull()?.uppercase() ?: card.cardName
+                val last4 = card.last4Digits ?: ""
+                cardMap[card.cardName] = if (last4.isNotBlank()) "$shortName $last4" else shortName
+            }
+
             activity?.runOnUiThread {
                 transactionList.clear()
                 transactionList.addAll(sortedList)
                 updateSummaryViews(sortedList)
                 updateEmptyState()
-                
-                val limitedList = transactionList.take(5)
-                adapter = TransactionAdapter(limitedList) { deleteTransaction(it) }
+
+                val prefs = requireContext().getSharedPreferences(
+                    "ExpenseSensePrefs",
+                    android.content.Context.MODE_PRIVATE
+                )
+                if (!prefs.getBoolean("swipe_hint_shown", false) && transactionList.isNotEmpty()) {
+                    cardSwipeTooltip.visibility = View.VISIBLE
+                }
+
+                val limitedList = transactionList.take(5).toMutableList()
+                adapter = TransactionAdapter(limitedList) { transaction ->
+                    val intent =
+                        Intent(requireContext(), TransactionDetailsActivity::class.java).apply {
+                            putExtra("id", transaction.id)
+                            putExtra("firebaseId", transaction.firebaseId)
+                            putExtra("title", transaction.title)
+                            putExtra("amount", transaction.amount)
+                            putExtra("category", transaction.category)
+                            putExtra("timestamp", transaction.timestamp)
+                            putExtra("paymentMethod", transaction.paymentMethod)
+                            putExtra("referenceId", transaction.referenceId)
+                            putExtra("note", transaction.note)
+                            putExtra("accountName", transaction.accountName)
+                        }
+                    detailsLauncher.launch(intent)
+                }
+                adapter.updateCardMap(cardMap)
                 rvTransactions.adapter = adapter
+                attachSwipeHelper()
 
                 // Update Shared ViewModel
-                val expenses = transactionList.map { 
-                    Expense(it.title, it.amount, SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date(it.timestamp)))
+                val expenses = transactionList.map {
+                    Expense(
+                        it.title,
+                        it.amount,
+                        SimpleDateFormat(
+                            "dd MMM yyyy",
+                            Locale.getDefault()
+                        ).format(Date(it.timestamp))
+                    )
                 }.toMutableList()
                 expenseViewModel.updateExpenses(expenses)
             }
@@ -615,6 +742,7 @@ class HomeFragment : Fragment() {
     }
 
     private fun syncWithFirebase() {
+        android.util.Log.d("FLOW_DEBUG", "Triggering remote Home data fetch from Firebase...")
         val user = FirebaseAuth.getInstance().currentUser ?: return
         val username = user.email?.substringBefore("@") ?: return
         FirebaseDatabase.getInstance().getReference("users/$username/expenses")
@@ -632,16 +760,25 @@ class HomeFragment : Fragment() {
                                 parsedCount++
                                 val key = expenseSnapshot.key ?: continue
                                 if (!localMap.containsKey(key)) {
-                                    dao.insertTransaction(Transaction(
-                                        title = key.substringBeforeLast("-"),
-                                        amount = expenseSnapshot.child("amount").getValue(Double::class.java) ?: 0.0,
-                                        category = categorySnapshot.key ?: "Other",
-                                        accountName = expenseSnapshot.child("account").getValue(String::class.java) ?: "Cash",
-                                        timestamp = expenseSnapshot.child("timestamp").getValue(Long::class.java) ?: 0L,
-                                        paymentMethod = expenseSnapshot.child("paymentMethod").getValue(String::class.java) ?: "Cash",
-                                        referenceId = expenseSnapshot.child("account").getValue(String::class.java) ?: "Cash",
-                                        firebaseId = key
-                                    ))
+                                    dao.insertTransaction(
+                                        Transaction(
+                                            title = key.substringBeforeLast("-"),
+                                            amount = expenseSnapshot.child("amount")
+                                                .getValue(Double::class.java) ?: 0.0,
+                                            category = categorySnapshot.key ?: "Other",
+                                            accountName = expenseSnapshot.child("account")
+                                                .getValue(String::class.java) ?: "Cash",
+                                            timestamp = expenseSnapshot.child("timestamp")
+                                                .getValue(Long::class.java) ?: 0L,
+                                            paymentMethod = expenseSnapshot.child("paymentMethod")
+                                                .getValue(String::class.java) ?: "Cash",
+                                            referenceId = expenseSnapshot.child("account")
+                                                .getValue(String::class.java) ?: "Cash",
+                                            firebaseId = key,
+                                            note = expenseSnapshot.child("note")
+                                                .getValue(String::class.java) ?: ""
+                                        )
+                                    )
                                     hasNew = true
                                 }
                             }
@@ -649,7 +786,8 @@ class HomeFragment : Fragment() {
                         if (hasNew && isAdded) loadFromRoom()
                     }.start()
                 }
-                override fun onCancelled(error: DatabaseError) { }
+
+                override fun onCancelled(error: DatabaseError) {}
             })
 
         FirebaseDatabase.getInstance().getReference("users/$username/budgets")
@@ -663,13 +801,22 @@ class HomeFragment : Fragment() {
                         for (budgetSnapshot in snapshot.children) {
                             val monthYear = budgetSnapshot.key ?: continue
                             if (!localBudgets.containsKey(monthYear)) {
-                                dao.insertBudget(Budget(monthYear, budgetSnapshot.child("totalBudget").getValue(Double::class.java) ?: 0.0, budgetSnapshot.child("remainingBudget").getValue(Double::class.java) ?: 0.0))
+                                dao.insertBudget(
+                                    Budget(
+                                        monthYear,
+                                        budgetSnapshot.child("totalBudget")
+                                            .getValue(Double::class.java) ?: 0.0,
+                                        budgetSnapshot.child("remainingBudget")
+                                            .getValue(Double::class.java) ?: 0.0
+                                    )
+                                )
                             }
                         }
                         activity?.runOnUiThread { budgetViewModel.loadCurrentMonthBudget() }
                     }.start()
                 }
-                override fun onCancelled(error: DatabaseError) { }
+
+                override fun onCancelled(error: DatabaseError) {}
             })
 
         FirebaseDatabase.getInstance().getReference("users/$username/accounts")
@@ -689,7 +836,8 @@ class HomeFragment : Fragment() {
                         activity?.runOnUiThread { accountViewModel.loadAccounts() }
                     }.start()
                 }
-                override fun onCancelled(error: DatabaseError) { }
+
+                override fun onCancelled(error: DatabaseError) {}
             })
     }
 
@@ -697,7 +845,14 @@ class HomeFragment : Fragment() {
         val user = FirebaseAuth.getInstance().currentUser ?: return
         val username = user.email?.substringBefore("@") ?: return
         val database = AppDatabase.getDatabase(requireContext())
-        PaymentRepository(database, database.transactionDao(), database.accountDao(), database.debitCardDao(), database.creditCardDao(), database.budgetDao())
+        PaymentRepository(
+            database,
+            database.transactionDao(),
+            database.accountDao(),
+            database.debitCardDao(),
+            database.creditCardDao(),
+            database.budgetDao()
+        )
             .deleteExpense(record, username) { success, _ ->
                 if (success) activity?.runOnUiThread {
                     loadFromRoom()
@@ -716,9 +871,11 @@ class HomeFragment : Fragment() {
         val cal = Calendar.getInstance()
         val mTotal = records.filter {
             val c = Calendar.getInstance().apply { timeInMillis = it.timestamp }
-            c.get(Calendar.MONTH) == cal.get(Calendar.MONTH) && c.get(Calendar.YEAR) == cal.get(Calendar.YEAR)
+            c.get(Calendar.MONTH) == cal.get(Calendar.MONTH) && c.get(Calendar.YEAR) == cal.get(
+                Calendar.YEAR
+            )
         }.sumOf { it.amount }
-        
+
         tvMonthTotal.text = "This Month: ₹%.2f".format(mTotal)
     }
 
@@ -731,4 +888,86 @@ class HomeFragment : Fragment() {
             rvTransactions.visibility = View.VISIBLE
         }
     }
+
+    private fun attachSwipeHelper() {
+            val swipeCallback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
+                override fun onMove(
+                    recyclerView: RecyclerView,
+                    viewHolder: RecyclerView.ViewHolder,
+                    target: RecyclerView.ViewHolder
+                ): Boolean = false
+
+                override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                    val prefs = requireContext().getSharedPreferences(
+                        "ExpenseSensePrefs",
+                        android.content.Context.MODE_PRIVATE
+                    )
+                    if (!prefs.getBoolean("swipe_hint_shown", false)) {
+                        prefs.edit().putBoolean("swipe_hint_shown", true).apply()
+                        cardSwipeTooltip.visibility = View.GONE
+                    }
+
+                    val position = viewHolder.adapterPosition
+                    val deletedItem = adapter.records[position]
+
+                    adapter.removeItem(position)
+
+                    val snackbar = Snackbar.make(
+                        rvTransactions,
+                        "${deletedItem.title} removed",
+                        Snackbar.LENGTH_LONG
+                    )
+                    snackbar.setAction("UNDO") {
+                        adapter.restoreItem(deletedItem, position)
+                    }
+                    snackbar.addCallback(object : Snackbar.Callback() {
+                        override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                            if (event != DISMISS_EVENT_ACTION) {
+                                deleteTransaction(deletedItem)
+                            }
+                        }
+                    })
+                    snackbar.show()
+                }
+
+                override fun onChildDraw(
+                    c: Canvas,
+                    recyclerView: RecyclerView,
+                    viewHolder: RecyclerView.ViewHolder,
+                    dX: Float,
+                    dY: Float,
+                    actionState: Int,
+                    isCurrentlyActive: Boolean
+                ) {
+                    if (viewHolder is TransactionAdapter.TransactionViewHolder) {
+                        ItemTouchHelper.Callback.getDefaultUIUtil().onDraw(
+                            c, recyclerView, viewHolder.cardForeground, dX, dY,
+                            actionState, isCurrentlyActive
+                        )
+                    }
+                }
+
+                override fun clearView(
+                    recyclerView: RecyclerView,
+                    viewHolder: RecyclerView.ViewHolder
+                ) {
+                    if (viewHolder is TransactionAdapter.TransactionViewHolder) {
+                        ItemTouchHelper.Callback.getDefaultUIUtil()
+                            .clearView(viewHolder.cardForeground)
+                    }
+                }
+
+                override fun onSelectedChanged(
+                    viewHolder: RecyclerView.ViewHolder?,
+                    actionState: Int
+                ) {
+                    if (viewHolder is TransactionAdapter.TransactionViewHolder) {
+                        ItemTouchHelper.Callback.getDefaultUIUtil()
+                            .onSelected(viewHolder.cardForeground)
+                    }
+                }
+            }
+            ItemTouchHelper(swipeCallback).attachToRecyclerView(rvTransactions)
+        }
+
 }

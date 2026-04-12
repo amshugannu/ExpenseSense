@@ -15,6 +15,9 @@ class AccountRepository(private val accountDao: AccountDao) {
     fun getAllAccounts(callback: (List<Account>) -> Unit) {
         Thread {
             val accounts = accountDao.getAllAccounts()
+            accounts.forEach { 
+                android.util.Log.d("ROOM_DEBUG", "Fetched from Room -> Account: ${it.name}, Balance: ${it.balance}")
+            }
             callback(accounts)
         }.start()
     }
@@ -28,13 +31,23 @@ class AccountRepository(private val accountDao: AccountDao) {
             }
 
             // Save to Room
-            accountDao.insertAccount(account)
+            android.util.Log.d("ROOM_DEBUG", "Updating Room -> Account: ${account.name}, New Balance: ${account.balance}")
+            try {
+                accountDao.insertAccount(account)
+                android.util.Log.d("ROOM_DEBUG", "Room update SUCCESS (Account)")
+            } catch (e: Exception) {
+                android.util.Log.e("ROOM_DEBUG", "Room update FAILED (Account)", e)
+            }
 
             // Sync to Firebase
             val username = getUsername()
             if (username != null) {
+                android.util.Log.d("FIREBASE_DEBUG", "Updating Firebase -> Account: ${account.name}, New Balance: ${account.balance}")
                 firebaseDatabase.getReference("users/$username/accounts/${account.name}")
                     .setValue(account)
+                    .addOnSuccessListener { android.util.Log.d("FIREBASE_DEBUG", "Firebase update SUCCESS (Account)") }
+                    .addOnFailureListener { e -> android.util.Log.e("FIREBASE_DEBUG", "Firebase update FAILED (Account)", e) }
+
             }
             onComplete()
         }.start()
@@ -45,16 +58,26 @@ class AccountRepository(private val accountDao: AccountDao) {
             val account = accountDao.getAccountByName(accountName)
             if (account != null) {
                 val newBalance = account.balance + amount
-                accountDao.updateBalance(accountName, newBalance)
+                android.util.Log.d("ROOM_DEBUG", "Updating Room Balance -> Account: $accountName, New Balance: $newBalance")
+                try {
+                    accountDao.updateBalance(accountName, newBalance)
+                    android.util.Log.d("ROOM_DEBUG", "Room balance update SUCCESS")
+                } catch (e: Exception) {
+                    android.util.Log.e("ROOM_DEBUG", "Room balance update FAILED", e)
+                }
 
                 // Sync to Firebase
                 val username = getUsername()
                 if (username != null) {
+                    android.util.Log.d("FIREBASE_DEBUG", "Updating Firebase Balance -> Account: $accountName, New Balance: $newBalance")
                     firebaseDatabase.getReference("users/$username/accounts/$accountName/balance")
                         .setValue(newBalance)
+                        .addOnSuccessListener { android.util.Log.d("FIREBASE_DEBUG", "Firebase balance update SUCCESS") }
+                        .addOnFailureListener { e -> android.util.Log.e("FIREBASE_DEBUG", "Firebase balance update FAILED", e) }
                 }
                 onComplete()
             } else {
+                android.util.Log.e("ROOM_DEBUG", "Failed to update balance: Account $accountName NOT FOUND in Room")
                 onComplete()
             }
         }.start()

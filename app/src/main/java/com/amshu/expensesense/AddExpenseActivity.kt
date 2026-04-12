@@ -2,6 +2,7 @@ package com.amshu.expensesense
 
 import android.app.Activity
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
@@ -9,6 +10,7 @@ import android.widget.*
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.button.MaterialButtonToggleGroup
 import com.google.firebase.auth.FirebaseAuth
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -19,9 +21,12 @@ class AddExpenseActivity : AppCompatActivity() {
     private lateinit var btnBack: ImageButton
     private lateinit var etName: EditText
     private lateinit var etAmount: EditText
+    private lateinit var etNote: EditText
     private lateinit var tvDate: TextView
     private lateinit var tvClear: TextView
     private lateinit var layoutDate: RelativeLayout
+    private lateinit var tvTime: TextView
+    private lateinit var layoutTime: RelativeLayout
     private lateinit var ivCategoryIcon: ImageView
     private lateinit var pbCategorySelect: ProgressBar
     private var selectedCategory: String = "other"
@@ -30,6 +35,8 @@ class AddExpenseActivity : AppCompatActivity() {
     private lateinit var tvSelectorLabel: TextView
     private lateinit var spinnerDynamic: Spinner
     private lateinit var btnAddExpense: MaterialButton
+    private lateinit var toggleType: MaterialButtonToggleGroup
+    private var selectedTransactionType: String = Transaction.TYPE_EXPENSE
 
     private lateinit var paymentRepository: PaymentRepository
     private lateinit var cardRepository: CardRepository
@@ -75,9 +82,12 @@ class AddExpenseActivity : AppCompatActivity() {
         btnBack       = findViewById(R.id.btnBack)
         etName        = findViewById(R.id.etName)
         etAmount      = findViewById(R.id.etAmount)
+        etNote        = findViewById(R.id.etNote)
         tvDate        = findViewById(R.id.tvDate)
         tvClear       = findViewById(R.id.tvClear)
         layoutDate    = findViewById(R.id.layoutDate)
+        tvTime        = findViewById(R.id.tvTime)
+        layoutTime    = findViewById(R.id.layoutTime)
         ivCategoryIcon = findViewById(R.id.ivCategoryIcon)
         pbCategorySelect = findViewById(R.id.pbCategorySelect)
         
@@ -88,6 +98,19 @@ class AddExpenseActivity : AppCompatActivity() {
         spinnerDynamic         = findViewById(R.id.spinnerDynamic)
         
         btnAddExpense = findViewById(R.id.btnAddExpense)
+        toggleType     = findViewById(R.id.toggleType)
+
+        // Setup Transaction Type Toggle
+        toggleType.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (isChecked) {
+                selectedTransactionType = if (checkedId == R.id.btnTypeExpense) {
+                    Transaction.TYPE_EXPENSE
+                } else {
+                    Transaction.TYPE_INCOME
+                }
+                updateUIForType(selectedTransactionType)
+            }
+        }
 
         // Initialize category UI
         updateCategoryImage(selectedCategory)
@@ -105,8 +128,9 @@ class AddExpenseActivity : AppCompatActivity() {
         // Initialize default state
         handlePaymentMethodChange(R.id.chipCash)
 
-        // Pre-fill today's date
+        // Pre-fill today's date and time
         updateDateLabel()
+        updateTimeLabel()
 
         btnBack.setOnClickListener { finish() }
 
@@ -117,6 +141,9 @@ class AddExpenseActivity : AppCompatActivity() {
 
         layoutDate.setOnClickListener { showDatePicker() }
         tvDate.setOnClickListener    { showDatePicker() }
+
+        layoutTime.setOnClickListener { showTimePicker() }
+        tvTime.setOnClickListener    { showTimePicker() }
 
         btnAddExpense.setOnClickListener { submitExpense() }
 
@@ -144,8 +171,24 @@ class AddExpenseActivity : AppCompatActivity() {
             }
         }
 
-        // Handle Intent Extras from Bill Scanning
+        // Handle Intent Extras from Bill Scanning and Editing
         intent.apply {
+            val isEditing = getBooleanExtra("isEditing", false)
+            if (isEditing) {
+                btnAddExpense.text = "UPDATE TRANSACTION"
+                val note = getStringExtra("note")
+                val paymentMethod = getStringExtra("paymentMethod")
+                
+                if (!note.isNullOrEmpty()) etNote.setText(note)
+
+                when (paymentMethod) {
+                    "UPI" -> chipGroupPaymentMethod.check(R.id.chipUPI)
+                    "Debit Card" -> chipGroupPaymentMethod.check(R.id.chipDebit)
+                    "Credit Card" -> chipGroupPaymentMethod.check(R.id.chipCredit)
+                    else -> chipGroupPaymentMethod.check(R.id.chipCash)
+                }
+            }
+
             val title = getStringExtra("title")
             val amount = getDoubleExtra("amount", -1.0)
             val category = getStringExtra("category")
@@ -154,16 +197,17 @@ class AddExpenseActivity : AppCompatActivity() {
             if (!title.isNullOrEmpty()) {
                 etName.setText(title)
             }
-            if (amount != -1.0) {
+            if (amount != -1.0 && amount != 0.0) {
                 etAmount.setText(amount.toString())
             }
             if (!category.isNullOrEmpty()) {
                 selectedCategory = category
                 updateCategoryImage(selectedCategory)
             }
-            if (timestamp != -1L) {
+            if (timestamp != -1L && timestamp != 0L) {
                 calendar.timeInMillis = timestamp
                 updateDateLabel()
+                updateTimeLabel()
             }
         }
     }
@@ -171,6 +215,11 @@ class AddExpenseActivity : AppCompatActivity() {
     private fun updateCategoryImage(category: String) {
         val iconResId = CategoryAdapter.getCategoryIcon(category)
         ivCategoryIcon.setImageResource(iconResId)
+    }
+
+    private fun updateUIForType(type: String) {
+        findViewById<TextView>(R.id.tvTitle).text = if (type == Transaction.TYPE_INCOME) "Add Income" else "Add Expense"
+        btnAddExpense.text = if (type == Transaction.TYPE_INCOME) "Add Income" else "Add Expense"
     }
 
     private fun showDatePicker() {
@@ -189,6 +238,25 @@ class AddExpenseActivity : AppCompatActivity() {
     private fun updateDateLabel() {
         val sdf = SimpleDateFormat("EEE, dd MMM yyyy", Locale.getDefault())
         tvDate.text = sdf.format(calendar.time)
+    }
+
+    private fun showTimePicker() {
+        TimePickerDialog(
+            this,
+            { _, hourOfDay, minute ->
+                calendar.set(Calendar.HOUR_OF_DAY, hourOfDay)
+                calendar.set(Calendar.MINUTE, minute)
+                updateTimeLabel()
+            },
+            calendar.get(Calendar.HOUR_OF_DAY),
+            calendar.get(Calendar.MINUTE),
+            false
+        ).show()
+    }
+
+    private fun updateTimeLabel() {
+        val sdf = SimpleDateFormat("hh:mm a", Locale.getDefault())
+        tvTime.text = sdf.format(calendar.time)
     }
 
     private fun handlePaymentMethodChange(chipId: Int) {
@@ -227,7 +295,7 @@ class AddExpenseActivity : AppCompatActivity() {
     }
 
     private fun loadCards(type: String) {
-        cardRepository.getAllCards { debits, credits ->
+        cardRepository.getAllCards { debits, credits, _ ->
             val names = if (type == "Debit") {
                 debits.map { it.cardName }
             } else {
@@ -288,6 +356,8 @@ class AddExpenseActivity : AppCompatActivity() {
         val sanctionedName = name.replace(Regex("[.#$\\[\\]/]"), "-")
         val uniqueTitleKey = "$sanctionedName-$timestamp"
 
+        val note      = etNote.text.toString().trim()
+
         val transaction = Transaction(
             title      = name,
             amount     = amount,
@@ -296,19 +366,55 @@ class AddExpenseActivity : AppCompatActivity() {
             timestamp  = timestamp,
             paymentMethod = paymentMethod,
             referenceId = referenceId,
-            firebaseId = uniqueTitleKey
+            firebaseId = uniqueTitleKey,
+            note       = note,
+            transactionType = selectedTransactionType
         )
 
         btnAddExpense.isEnabled = false
+        val isEditing = intent.getBooleanExtra("isEditing", false)
         
-        paymentRepository.saveExpense(transaction, paymentMethod, referenceId, username) { success, error ->
-            runOnUiThread {
-                btnAddExpense.isEnabled = true
-                if (success) {
-                    Toast.makeText(this@AddExpenseActivity, "Expense Saved", Toast.LENGTH_SHORT).show()
-                    finish()
-                } else {
-                    Toast.makeText(this@AddExpenseActivity, "Error: $error", Toast.LENGTH_LONG).show()
+        if (isEditing) {
+            val oldTransaction = Transaction(
+                id = intent.getIntExtra("id", 0),
+                title = intent.getStringExtra("title") ?: "",
+                amount = intent.getDoubleExtra("amount", 0.0),
+                category = intent.getStringExtra("category") ?: "",
+                timestamp = intent.getLongExtra("timestamp", 0L),
+                paymentMethod = intent.getStringExtra("paymentMethod") ?: "Cash",
+                referenceId = intent.getStringExtra("referenceId"),
+                firebaseId = intent.getStringExtra("firebaseId"),
+                note = intent.getStringExtra("note") ?: "",
+                accountName = intent.getStringExtra("accountName") ?: "Cash"
+            )
+            val updatedTransaction = transaction.copy(
+                id = oldTransaction.id,
+                firebaseId = oldTransaction.firebaseId // retain old firebase ID
+            )
+            
+            paymentRepository.updateExpense(oldTransaction, updatedTransaction, paymentMethod, referenceId, username) { success, error ->
+                runOnUiThread {
+                    btnAddExpense.isEnabled = true
+                    if (success) {
+                        Toast.makeText(this@AddExpenseActivity, "Expense Updated", Toast.LENGTH_SHORT).show()
+                        setResult(android.app.Activity.RESULT_OK)
+                        finish()
+                    } else {
+                        Toast.makeText(this@AddExpenseActivity, "Error: $error", Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        } else {
+            paymentRepository.saveExpense(transaction, paymentMethod, referenceId, username) { success, error ->
+                runOnUiThread {
+                    btnAddExpense.isEnabled = true
+                    if (success) {
+                        Toast.makeText(this@AddExpenseActivity, "Expense Saved", Toast.LENGTH_SHORT).show()
+                        setResult(android.app.Activity.RESULT_OK)
+                        finish()
+                    } else {
+                        Toast.makeText(this@AddExpenseActivity, "Error: $error", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }

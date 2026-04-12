@@ -22,12 +22,21 @@ class CardRepository(
     fun saveDebitCard(card: DebitCard, callback: (Boolean) -> Unit) {
         Thread {
             try {
-                debitCardDao.insertDebitCard(card) // insert with REPLACE handles both new and existing
+                android.util.Log.d("ROOM_DEBUG", "Updating Room -> Debit Card: ${card.cardName}")
+                try {
+                    debitCardDao.insertDebitCard(card) // insert with REPLACE handles both new and existing
+                    android.util.Log.d("ROOM_DEBUG", "Room update SUCCESS (Debit Card)")
+                } catch (e: Exception) {
+                    android.util.Log.e("ROOM_DEBUG", "Room update FAILED (Debit Card)", e)
+                }
 
                 val username = getUsername()
                 if (username != null) {
+                    android.util.Log.d("FIREBASE_DEBUG", "Updating Firebase -> Debit Card: ${card.cardName}")
                     val ref = firebaseDatabase.getReference("users/$username/cards/debit_cards/${card.cardName}")
                     ref.setValue(card)
+                        .addOnSuccessListener { android.util.Log.d("FIREBASE_DEBUG", "Firebase update SUCCESS (Debit Card)") }
+                        .addOnFailureListener { e -> android.util.Log.e("FIREBASE_DEBUG", "Firebase update FAILED (Debit Card)", e) }
                 }
                 callback(true)
             } catch (e: Exception) {
@@ -57,12 +66,22 @@ class CardRepository(
     fun saveCreditCard(card: CreditCard, callback: (Boolean) -> Unit) {
         Thread {
             try {
-                creditCardDao.insertCreditCard(card) // insert with REPLACE handles both new and existing
+                android.util.Log.d("ROOM_DEBUG", "Updating Room -> Credit Card: ${card.cardName}, Available Limit: ${card.availableLimit}")
+                try {
+                    creditCardDao.insertCreditCard(card) // insert with REPLACE handles both new and existing
+                    android.util.Log.d("ROOM_DEBUG", "Room update SUCCESS (Credit Card)")
+                } catch (e: Exception) {
+                    android.util.Log.e("ROOM_DEBUG", "Room update FAILED (Credit Card)", e)
+                }
 
                 val username = getUsername()
                 if (username != null) {
-                    val ref = firebaseDatabase.getReference("users/$username/cards/credit_cards/${card.cardName}")
+                    val docId = card.documentId.takeIf { it.isNotEmpty() } ?: card.cardName
+                    android.util.Log.d("FIREBASE_DEBUG", "Updating Firebase -> Credit Card DocId: $docId, New Balance: ${card.availableLimit}")
+                    val ref = firebaseDatabase.getReference("users/$username/cards/credit_cards/$docId")
                     ref.setValue(card)
+                        .addOnSuccessListener { android.util.Log.d("FIREBASE_DEBUG", "Firebase update SUCCESS (Credit Card)") }
+                        .addOnFailureListener { e -> android.util.Log.e("FIREBASE_DEBUG", "Firebase update FAILED (Credit Card)", e) }
                 }
                 callback(true)
             } catch (e: Exception) {
@@ -77,7 +96,8 @@ class CardRepository(
                 creditCardDao.deleteCreditCard(card)
                 val username = getUsername()
                 if (username != null) {
-                    val ref = firebaseDatabase.getReference("users/$username/cards/credit_cards/${card.cardName}")
+                    val docId = card.documentId.takeIf { it.isNotEmpty() } ?: card.cardName
+                    val ref = firebaseDatabase.getReference("users/$username/cards/credit_cards/$docId")
                     ref.removeValue()
                 }
                 callback(true)
@@ -89,14 +109,16 @@ class CardRepository(
 
     // --- FETCH & SYNC OPS ---
 
-    fun getAllCards(callback: (List<DebitCard>, List<CreditCard>) -> Unit) {
+    fun getAllCards(callback: (List<DebitCard>, List<CreditCard>, Boolean) -> Unit) {
         val username = getUsername() ?: ""
         
         // 1. Initial Load from Room (Instant UI)
         Thread {
             val localDebits = debitCardDao.getAllDebitCards()
             val localCredits = creditCardDao.getAllCreditCards()
-            callback(localDebits, localCredits)
+            localDebits.forEach { android.util.Log.d("ROOM_DEBUG", "Fetched from Room -> CardId: ${it.cardName}, Linked Account: ${it.linkedBankAccountId}") }
+            localCredits.forEach { android.util.Log.d("ROOM_DEBUG", "Fetched from Room -> CardId: ${it.cardName}, Balance: ${it.availableLimit}") }
+            callback(localDebits, localCredits, false)
             
             // 2. Sync from Firebase in Background
             if (username.isNotEmpty()) {
@@ -104,6 +126,9 @@ class CardRepository(
                 
                 ref.addListenerForSingleValueEvent(object : com.google.firebase.database.ValueEventListener {
                     override fun onDataChange(snapshot: com.google.firebase.database.DataSnapshot) {
+                        android.util.Log.d("FIREBASE_DEBUG", "------ FIREBASE FETCH START ------")
+                        android.util.Log.d("SNAPSHOT_DEBUG", "Snapshot triggered")
+                        
                         Thread {
                             var hasChanges = false
                             val localDebits = debitCardDao.getAllDebitCards().associateBy { it.cardName }
@@ -111,35 +136,44 @@ class CardRepository(
                             
                             // Process Debit Cards
                             val debitSnap = snapshot.child("debit_cards")
-                            var debitCount = 0
                             for (ds in debitSnap.children) {
-                                debitCount++
                                 val card = ds.getValue(DebitCard::class.java)
-                                if (card != null && !localDebits.containsKey(card.cardName)) {
-                                    debitCardDao.insertDebitCard(card)
-                                    hasChanges = true
+                                if (card != null) {
+                                    android.util.Log.d("FIREBASE_DEBUG", "Fetched from Firebase -> CardId: ${card.cardName}, Linked Account: ${card.linkedBankAccountId}")
+                                    android.util.Log.d("SNAPSHOT_DEBUG", "DocId (Debit): ${card.cardName}, Details: $card")
+                                    if (!localDebits.containsKey(card.cardName)) {
+                                        android.util.Log.d("ROOM_DEBUG", "Updating Room from Firebase -> Debit Card: ${card.cardName}")
+                                        debitCardDao.insertDebitCard(card)
+                                        hasChanges = true
+                                    }
                                 }
                             }
                             
                             // Process Credit Cards
                             val creditSnap = snapshot.child("credit_cards")
-                            var creditCount = 0
                             for (cs in creditSnap.children) {
-                                creditCount++
-                                val card = cs.getValue(CreditCard::class.java)
-                                if (card != null && !localCredits.containsKey(card.cardName)) {
-                                    creditCardDao.insertCreditCard(card)
-                                    hasChanges = true
+                                val documentId = cs.key ?: ""
+                                val parsedCard = cs.getValue(CreditCard::class.java)
+                                if (parsedCard != null) {
+                                    val card = parsedCard.copy(documentId = documentId)
+                                    android.util.Log.d("FIREBASE_DEBUG", "DocId: $documentId, Name: ${card.cardName}, Balance: ${card.availableLimit}")
+                                    
+                                    if (!localCredits.containsKey(card.cardName)) {
+                                        android.util.Log.d("ROOM_DEBUG", "Updating Room from Firebase -> Credit Card: ${card.cardName}, Balance: ${card.availableLimit}")
+                                        creditCardDao.insertCreditCard(card)
+                                        hasChanges = true
+                                    }
                                 }
                             }
                             
                             if (hasChanges) {
-                                callback(debitCardDao.getAllDebitCards(), creditCardDao.getAllCreditCards())
+                                callback(debitCardDao.getAllDebitCards(), creditCardDao.getAllCreditCards(), true)
                             }
+                            android.util.Log.d("FIREBASE_DEBUG", "------ FIREBASE FETCH END ------")
                         }.start()
                     }
                     override fun onCancelled(error: com.google.firebase.database.DatabaseError) {
-                        // Firebase fetch cancelled or failed
+                        android.util.Log.e("FIREBASE_DEBUG", "Firebase fetch FAILED", error.toException())
                     }
                 })
             }

@@ -16,5 +16,12 @@ data class Transaction(
     val timestamp: Long,
     val paymentMethod: String = "Cash", // Cash, UPI, Debit, Credit
     val referenceId: String? = null,    // ID of the bank/card
-    val firebaseId: String? = null
-)
+    val firebaseId: String? = null,
+    val note: String = "",
+    val transactionType: String = TYPE_EXPENSE
+) {
+    companion object {
+        const val TYPE_EXPENSE = "EXPENSE"
+        const val TYPE_INCOME = "INCOME"
+    }
+}
