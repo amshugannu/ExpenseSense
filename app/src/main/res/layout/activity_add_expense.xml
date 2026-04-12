@@ -1,17 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!--
-  APPROACH: activityheaderbg used as a plain <ImageView>, NOT as a drawable background.
-  - adjustViewBounds="true" + scaleType="fitXY" makes the image fill the full width
-    while its height adapts naturally to the image's own aspect ratio → works on
-    every screen size / density without any hard-coded heights.
-  - Header controls (back, title, 3-dots) sit in a FrameLayout that is constrained
-    to exactly the same bounds as the image view.
-  - The form card is laid out BELOW the image with a negative top margin so it
-    visually overlaps the curved bottom edge, matching the reference design.
-  - All inputs (NAME · AMOUNT · DATE) live inside the single CardView container.
-  - Invoice section is fully removed.
-  - ADD EXPENSE button is pinned to the parent bottom so it is always visible.
--->
+
 <RelativeLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -21,13 +9,7 @@
     android:background="#FFFFFF"
     tools:context=".AddExpenseActivity">
 
-    <!-- ════════════════════════════════════════════════════════════════
-         1.  HEADER IMAGE
-             • match_parent width, wrap_content height
-             • adjustViewBounds="true"  → height scales with aspect ratio
-             • scaleType="fitXY"        → fills the measured width so no
-                                          side gutters appear on any screen
-         ════════════════════════════════════════════════════════════════ -->
+    <!-- 1.  HEADER IMAGE -->
     <ImageView
         android:id="@+id/imgHeader"
         android:layout_width="match_parent"
@@ -38,11 +20,7 @@
         android:scaleType="fitXY"
         android:src="@drawable/activityheaderbg" />
 
-    <!-- ════════════════════════════════════════════════════════════════
-         2.  HEADER CONTROLS  (overlaid on top of the image)
-             Aligned to the exact top/bottom of imgHeader so the padding
-             inside here positions elements relative to the image itself.
-         ════════════════════════════════════════════════════════════════ -->
+    <!--HEADER CONTROLS-->
     <RelativeLayout
         android:id="@+id/headerControls"
         android:layout_width="match_parent"
@@ -91,9 +69,7 @@
 
     </RelativeLayout>
 
-    <!-- ════════════════════════════════════════════════════════════════
-         3.  ADD EXPENSE BUTTON  — pinned to screen bottom, always visible
-         ════════════════════════════════════════════════════════════════ -->
+    <!--3.  ADD EXPENSE BUTTON -->
     <com.google.android.material.button.MaterialButton
         android:id="@+id/btnAddExpense"
         android:layout_width="match_parent"
@@ -117,13 +93,7 @@
         tools:targetApi="p"
         xmlns:tools="http://schemas.android.com/tools" />
 
-    <!-- ════════════════════════════════════════════════════════════════
-         4.  SCROLLABLE FORM  (sits above button, overlaps header bottom)
-             layout_below=imgHeader positions top at the image's bottom.
-             The negative marginTop (-36dp) pulls the CardView UP so it
-             overlaps the curved lower edge of the header image — matching
-             the reference design.
-         ════════════════════════════════════════════════════════════════ -->
+    <!--  4.  SCROLLABLE FORM -->
     <ScrollView
         android:id="@+id/scrollContent"
         android:layout_width="match_parent"
@@ -142,8 +112,7 @@
             android:paddingBottom="16dp">
 
             <!-- ── PARENT FORM CARD ─────────────────────────────────── -->
-            <!--  White elevated card with rounded corners
-                  contains ALL three input fields internally              -->
+            
             <androidx.cardview.widget.CardView
                 android:id="@+id/cardForm"
                 android:layout_width="match_parent"
@@ -163,6 +132,44 @@
                     android:paddingTop="22dp"
                     android:paddingEnd="20dp"
                     android:paddingBottom="26dp">
+
+                    <!-- ┌─ TRANSACTION TYPE ──────────────────────────┐ -->
+                    <com.google.android.material.button.MaterialButtonToggleGroup
+                        android:id="@+id/toggleType"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="20dp"
+                        app:singleSelection="true"
+                        app:selectionRequired="true"
+                        app:checkedButton="@+id/btnTypeExpense">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnTypeExpense"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Expense"
+                            android:textAllCaps="false"
+                            android:textColor="@color/black"
+                            app:strokeColor="#EEEEEE"
+                            app:rippleColor="#FDECEC"
+                            app:backgroundTint="@color/white" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnTypeIncome"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Income"
+                            android:textAllCaps="false"
+                            android:textColor="@color/black"
+                            app:strokeColor="#EEEEEE"
+                            app:rippleColor="#ECFDFD"
+                            app:backgroundTint="@color/white" />
+
+                    </com.google.android.material.button.MaterialButtonToggleGroup>
 
                     <!-- ┌─ CATEGORY & NAME ───────────────────────────┐ -->
                     <TextView
@@ -335,7 +342,52 @@
                     </RelativeLayout>
                     <!-- └─────────────────────────────────────────────┘ -->
 
+                    <!-- ┌─ TIME ──────────────────────────────────────┐ -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:letterSpacing="0.12"
+                        android:text="TIME"
+                        android:textAllCaps="true"
+                        android:textColor="#AAAAAA"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
 
+                    <RelativeLayout
+                        android:id="@+id/layoutTime"
+                        android:layout_width="match_parent"
+                        android:layout_height="60dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_field_normal"
+                        android:clickable="true"
+                        android:focusable="true"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp">
+
+                        <TextView
+                            android:id="@+id/tvTime"
+                            android:layout_width="match_parent"
+                            android:layout_height="match_parent"
+                            android:layout_toStartOf="@+id/ivClock"
+                            android:gravity="center_vertical"
+                            android:hint="Select Time"
+                            android:paddingEnd="4dp"
+                            android:textColor="#2C2C2C"
+                            android:textColorHint="#C5C5C5"
+                            android:textSize="15sp" />
+
+                        <ImageView
+                            android:id="@+id/ivClock"
+                            android:layout_width="22dp"
+                            android:layout_height="22dp"
+                            android:layout_alignParentEnd="true"
+                            android:layout_centerVertical="true"
+                            android:contentDescription="Pick time"
+                            android:src="@drawable/ic_time"
+                            app:tint="#BBBBBB" />
+                    </RelativeLayout>
+                    <!-- └─────────────────────────────────────────────┘ -->
 
                     <!-- ┌─ PAYMENT METHOD ──────────────────────────────┐ -->
                     <TextView
@@ -429,6 +481,33 @@
                             android:paddingStart="14dp"
                             android:paddingEnd="14dp" />
                     </LinearLayout>
+                    <!-- └─────────────────────────────────────────────┘ -->
+
+                    <!-- ┌─ NOTE ──────────────────────────────────────┐ -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="20dp"
+                        android:letterSpacing="0.12"
+                        android:text="NOTE (OPTIONAL)"
+                        android:textAllCaps="true"
+                        android:textColor="#AAAAAA"
+                        android:textSize="10sp"
+                        android:textStyle="bold" />
+
+                    <EditText
+                        android:id="@+id/etNote"
+                        android:layout_width="match_parent"
+                        android:layout_height="60dp"
+                        android:layout_marginTop="8dp"
+                        android:background="@drawable/bg_field_normal"
+                        android:hint="Add a note"
+                        android:inputType="text"
+                        android:paddingStart="14dp"
+                        android:paddingEnd="14dp"
+                        android:textColor="#2C2C2C"
+                        android:textColorHint="#C5C5C5"
+                        android:textSize="15sp" />
                     <!-- └─────────────────────────────────────────────┘ -->
 
                 </LinearLayout>

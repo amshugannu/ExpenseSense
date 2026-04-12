@@ -38,17 +38,25 @@
                         android:src="@drawable/ic_back_arrow"
                         app:tint="#1A1A2E" />
 
-                    <TextView
+                    <androidx.cardview.widget.CardView
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_centerInParent="true"
-                        android:text="Statistics"
-                        android:textColor="#1A1A2E"
-                        android:textSize="20sp"
-                        android:textStyle="bold" />
+                        app:cardCornerRadius="14dp"
+                        app:cardElevation="0dp"
+                        app:cardBackgroundColor="#F5F5F7">
+
+                        <Spinner
+                            android:id="@+id/spinnerGlobalMonth"
+                            android:layout_width="140dp"
+                            android:layout_height="36dp"
+                            android:background="@null"
+                            android:paddingStart="12dp"
+                            android:paddingEnd="12dp" />
+                    </androidx.cardview.widget.CardView>
 
                     <ImageButton
-                        android:id="@+id/btnExport"
+                        android:id="@+id/btnExportPdf"
                         android:layout_width="40dp"
                         android:layout_height="40dp"
                         android:layout_alignParentEnd="true"
@@ -208,22 +216,6 @@
                         android:textColor="#1A1A2E"
                         android:textSize="18sp"
                         android:textStyle="bold" />
-
-                <androidx.cardview.widget.CardView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_alignParentEnd="true"
-                    app:cardCornerRadius="12dp"
-                    app:cardElevation="2dp">
-
-                    <Spinner
-                        android:id="@+id/spinnerHeatmapMonth"
-                        android:layout_width="140dp"
-                        android:layout_height="40dp"
-                        android:background="@null"
-                        android:paddingStart="12dp"
-                        android:paddingEnd="12dp" />
-                </androidx.cardview.widget.CardView>
                 </RelativeLayout>
 
                 <!-- Day Headers -->

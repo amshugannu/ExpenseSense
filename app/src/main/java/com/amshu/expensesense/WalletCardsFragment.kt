@@ -119,7 +119,8 @@ class WalletCardsFragment : Fragment() {
         cardViewModel = androidx.lifecycle.ViewModelProvider(this, factory).get(CardViewModel::class.java)
 
         // Observe Cards from ViewModel
-        cardViewModel.cards.observe(viewLifecycleOwner) { list ->
+        cardViewModel.cards.observe(viewLifecycleOwner) { pair ->
+            val list = pair.first
             
             lifecycleScope.launch {
                 val accounts = withContext(Dispatchers.IO) {

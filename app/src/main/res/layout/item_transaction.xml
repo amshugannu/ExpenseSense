@@ -1,79 +1,120 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:layout_marginStart="16dp"
-    android:layout_marginEnd="16dp"
-    android:layout_marginTop="8dp"
-    android:layout_marginBottom="4dp"
-    app:cardCornerRadius="14dp"
-    app:cardElevation="3dp"
-    app:cardBackgroundColor="#FFFFFF">
+    android:layout_height="wrap_content">
 
+    <!-- Background Swipe Action Layer -->
     <LinearLayout
+        android:id="@+id/layoutSwipeBackground"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#E53935"
+        android:gravity="center_vertical|end"
+        android:paddingEnd="20dp">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_delete"
+            app:tint="@android:color/white" />
+    </LinearLayout>
+
+    <!-- Foreground Item Container (Replaced MaterialCardView) -->
+    <LinearLayout
+        android:id="@+id/cardForeground"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:paddingStart="16dp"
-        android:paddingEnd="12dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp"
-        android:gravity="center_vertical">
+        android:background="#FFFFFF"
+        android:orientation="vertical"
+        android:foreground="?attr/selectableItemBackground">
 
-
-        <!-- Left: text content -->
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="14dp">
 
-            <TextView
-                android:id="@+id/tvTransactionTitle"
+            <!-- Category Icon -->
+            <androidx.cardview.widget.CardView
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                app:cardCornerRadius="12dp"
+                app:cardElevation="0dp"
+                app:cardBackgroundColor="#F5F6FA">
+                <ImageView
+                    android:id="@+id/ivTransactionCategory"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scaleType="centerCrop"
+                    android:padding="8dp"
+                    android:src="@drawable/cat_other" />
+            </androidx.cardview.widget.CardView>
+
+            <!-- Center Content -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:id="@+id/tvTransactionTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#1A1A2E"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+
+                <TextView
+                    android:id="@+id/tvTransactionDateTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="#888899"
+                    android:textSize="13sp"
+                    android:maxLines="1" />
+            </LinearLayout>
+
+            <!-- Right Content -->
+            <LinearLayout
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="#1A1A2E"
-                android:textSize="15sp"
-                android:textStyle="bold" />
+                android:gravity="end"
+                android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/tvTransactionCategory"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textColor="#9E9E9E"
-                android:textSize="12sp" />
+                <TextView
+                    android:id="@+id/tvTransactionAmount"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="#2ABFBF"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
 
-            <TextView
-                android:id="@+id/tvTransactionAmount"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="4dp"
-                android:textColor="#2ABFBF"
-                android:textSize="14sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvTransactionDate"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textColor="#BBBBCC"
-                android:textSize="11sp" />
+                <TextView
+                    android:id="@+id/tvTransactionPayment"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textColor="#888899"
+                    android:textSize="13sp"
+                    android:maxLines="1" />
+            </LinearLayout>
 
         </LinearLayout>
 
-        <!-- Right: delete button -->
-        <Button
-            android:id="@+id/btnDeleteTransaction"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Delete"
-            android:textColor="#E53935"
-            android:textSize="12sp"
-            style="@style/Widget.MaterialComponents.Button.TextButton" />
+        <!-- Divider -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="0.5dp"
+            android:background="#E0E0E0"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"/>
 
     </LinearLayout>
-
-</androidx.cardview.widget.CardView>
+</FrameLayout>

@@ -69,6 +69,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        android.util.Log.e("TEST_DEBUG", "APP STARTED SUCCESSFULLY")
+        android.util.Log.d("TEST_DEBUG", "Debug log working")
+        android.util.Log.e("TEST_DEBUG", "Error log working")
+        println("PRINT_DEBUG: This should appear in Run console")
+
         setContentView(R.layout.activity_main)
 
         bottomNavigationView = findViewById(R.id.bottomNavigationView)
@@ -146,6 +152,12 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         })
+    }
+
+    override fun onResume() {
+        super.onResume()
+        android.util.Log.d("TEST_DEBUG", "onResume called in MainActivity")
+        android.util.Log.e("TEST_DEBUG", "onResume Error log test")
     }
 
     private lateinit var scannerLauncher: androidx.activity.result.ActivityResultLauncher<IntentSenderRequest>

@@ -1,5 +1,6 @@
 package com.amshu.expensesense
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -12,7 +13,12 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
 
     suspend fun getTransactionsInRange(startTime: Long, endTime: Long): List<Transaction> =
         withContext(Dispatchers.IO) {
-            transactionDao.getTransactionsInRange(startTime, endTime)
+            val transactions = transactionDao.getTransactionsInRange(startTime, endTime)
+            Log.d("DB_DEBUG", "Fetched transactions count: ${transactions.size}")
+            transactions.forEach {
+                Log.d("DB_DEBUG", "TX -> ${it.title}, ${it.amount}, ${it.timestamp}, ${it.transactionType}")
+            }
+            transactions
         }
 
     suspend fun getFirstTransactionTimestamp(): Long? =

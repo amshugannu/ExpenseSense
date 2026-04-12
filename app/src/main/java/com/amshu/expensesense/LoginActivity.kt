@@ -68,11 +68,14 @@ class LoginActivity : AppCompatActivity() {
                 .addOnCompleteListener { task ->
                     if (task.isSuccessful) {
                         val user = auth.currentUser
-                        if (user != null && user.isEmailVerified) {
-                            performInitialSyncAndNavigate()
-                        } else {
-                            Toast.makeText(this, "Please verify email", Toast.LENGTH_SHORT).show()
-                            auth.signOut()
+                        if (user != null) {
+                            android.util.Log.d("AUTH_DEBUG", "User logged in with UID: ${user.uid}")
+                            if (user.isEmailVerified) {
+                                performInitialSyncAndNavigate()
+                            } else {
+                                Toast.makeText(this, "Please verify email", Toast.LENGTH_SHORT).show()
+                                auth.signOut()
+                            }
                         }
                     } else {
                         Toast.makeText(this, "Login failed", Toast.LENGTH_SHORT).show()
@@ -146,6 +149,7 @@ class LoginActivity : AppCompatActivity() {
                 if (task.isSuccessful) {
                     val user = auth.currentUser
                     if (user != null) {
+                        android.util.Log.d("AUTH_DEBUG", "User logged in with UID: ${user.uid}")
                         if (task.result?.additionalUserInfo?.isNewUser == true) {
                             // Delete the auto-created Firebase user and sign out
                             user.delete().addOnCompleteListener {
@@ -167,6 +171,9 @@ class LoginActivity : AppCompatActivity() {
     private fun performInitialSyncAndNavigate() {
         val user = auth.currentUser ?: return
         val username = user.email?.substringBefore("@") ?: return
+
+        android.util.Log.d("FLOW_DEBUG", "------ APP START AFTER LOGIN ------")
+        android.util.Log.d("FLOW_DEBUG", "Starting initial sync for user: $username")
 
         Thread {
             val db = AppDatabase.getDatabase(this@LoginActivity)

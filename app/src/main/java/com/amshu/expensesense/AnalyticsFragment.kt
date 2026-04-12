@@ -1,5 +1,6 @@
 package com.amshu.expensesense
 
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
@@ -7,14 +8,16 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.TextView
-import androidx.core.content.ContextCompat
+import android.widget.Toast
+import android.widget.AdapterView
+import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.amshu.expensesense.databinding.FragmentAnalyticsBinding
-import com.github.mikephil.charting.charts.LineChart
-import com.github.mikephil.charting.charts.PieChart
+import com.google.android.material.snackbar.Snackbar
 import com.github.mikephil.charting.data.*
+import com.github.mikephil.charting.components.XAxis
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -22,334 +25,325 @@ class AnalyticsFragment : Fragment() {
 
     private var _binding: FragmentAnalyticsBinding? = null
     private val binding get() = _binding!!
-    
+
     private lateinit var viewModel: AnalyticsViewModel
-    private val selectedCalendar = Calendar.getInstance()
-    private var currentTimeRange = "Day"
+    private var currentTimeRange = "Month"
 
     private lateinit var topSpendingAdapter: TopSpendingAdapter
 
-    override fun onCreateView(
-        inflater: LayoutInflater, container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         _binding = FragmentAnalyticsBinding.inflate(inflater, container, false)
         return binding.root
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
-
         setupViewModel()
         setupUI()
-        setupCharts()
         observeData()
-
-        // Initial fetch
-        viewModel.fetchData(currentTimeRange, selectedCalendar)
+        
+        // Initial fetch for current month
+        viewModel.fetchMonthlyData()
     }
 
     private fun setupViewModel() {
         val database = AppDatabase.getDatabase(requireContext())
         val repository = TransactionRepository(database.transactionDao())
+        val application = requireActivity().application
+
         val factory = object : ViewModelProvider.Factory {
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                return AnalyticsViewModel(repository) as T
+                return AnalyticsViewModel(application, repository) as T
             }
         }
+
         viewModel = ViewModelProvider(this, factory)[AnalyticsViewModel::class.java]
     }
 
-    private fun setupUI() {
-        // Tab Selection
-        val tabs = mapOf(
-            binding.tabDay to "Day",
-            binding.tabWeek to "Week",
-            binding.tabMonth to "Month",
-            binding.tabYear to "Year"
+    private fun setupMonthSpinner() {
+        val months = arrayOf(
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
         )
+        val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, months)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spinnerGlobalMonth.adapter = adapter
 
-        tabs.forEach { (view, range) ->
-            view.setOnClickListener {
-                updateTabUI(view)
-                currentTimeRange = range
-                viewModel.fetchData(currentTimeRange, selectedCalendar)
+        // Set current month as default
+        val currentMonth = Calendar.getInstance().get(Calendar.MONTH)
+        binding.spinnerGlobalMonth.setSelection(currentMonth)
+
+        binding.spinnerGlobalMonth.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                viewModel.selectedMonthCalendar.set(Calendar.MONTH, position)
+                viewModel.fetchMonthlyData()
             }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
+    }
 
-        // Spinner Setup
-        val types = arrayOf("Expense", "Income")
-        val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, types)
+    private fun setupUI() {
+        setupMonthSpinner()
+
+        val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, arrayOf("Expense", "Income"))
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         binding.spinnerType.adapter = adapter
 
-        // Recycler Views
         topSpendingAdapter = TopSpendingAdapter(emptyList())
         binding.rvTopSpending.layoutManager = LinearLayoutManager(requireContext())
         binding.rvTopSpending.adapter = topSpendingAdapter
 
-        // Heatmap Month Spinner
-        viewModel.availableMonths.observe(viewLifecycleOwner) { months ->
-            val monthStrings = months.map { SimpleDateFormat("MMM yyyy", Locale.getDefault()).format(it.time) }
-            val monthAdapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, monthStrings)
-            monthAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
-            binding.spinnerHeatmapMonth.adapter = monthAdapter
-            
-            // Set current month as default selection if possible
-            val currentIdx = months.indexOfFirst { it.get(Calendar.MONTH) == selectedCalendar.get(Calendar.MONTH) && it.get(Calendar.YEAR) == selectedCalendar.get(Calendar.YEAR) }
-            if (currentIdx != -1) binding.spinnerHeatmapMonth.setSelection(currentIdx)
-            
-            binding.spinnerHeatmapMonth.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
-                override fun onItemSelected(parent: android.widget.AdapterView<*>?, view: View?, position: Int, id: Long) {
-                    val targetMonth = months[position]
-                    selectedCalendar.set(Calendar.MONTH, targetMonth.get(Calendar.MONTH))
-                    selectedCalendar.set(Calendar.YEAR, targetMonth.get(Calendar.YEAR))
-                    viewModel.fetchData(currentTimeRange, selectedCalendar)
-                }
-                override fun onNothingSelected(parent: android.widget.AdapterView<*>?) {}
-            }
+        binding.btnExportPdf.setOnClickListener {
+            val transactions = viewModel.filteredTransactions.value ?: emptyList()
+            viewModel.exportPdf(transactions, viewModel.selectedMonthCalendar)
+        }
+
+        binding.btnBack.setOnClickListener {
+            requireActivity().onBackPressed()
         }
     }
-
-    private fun updateTabUI(selected: TextView) {
-        val allTabs = listOf(binding.tabDay, binding.tabWeek, binding.tabMonth, binding.tabYear)
-        allTabs.forEach {
-            it.setBackgroundResource(0)
-            it.setTextColor(Color.parseColor("#999999"))
-            it.typeface = android.graphics.Typeface.DEFAULT
-        }
-        selected.setBackgroundResource(R.drawable.toggle_selector_active)
-        selected.setTextColor(Color.WHITE)
-        selected.typeface = android.graphics.Typeface.DEFAULT_BOLD
-    }
-
-    private fun setupCharts() {
-        configureLineChart(binding.lineChart)
-        configurePieChart(binding.pieChartCategory, "Category")
-        configurePieChart(binding.pieChartAccount, "Account")
-    }
-
-    private fun configureLineChart(chart: LineChart) {
-        chart.apply {
-            description.isEnabled = false
-            setTouchEnabled(true)
-            isDragEnabled = true
-            setScaleEnabled(false)
-            setPinchZoom(false)
-            setDrawGridBackground(false)
-            xAxis.apply {
-                position = com.github.mikephil.charting.components.XAxis.XAxisPosition.BOTTOM
-                setDrawGridLines(false)
-                textColor = Color.parseColor("#999999")
-            }
-            axisLeft.apply {
-                setDrawGridLines(true)
-                gridColor = Color.parseColor("#F2F6F6")
-                textColor = Color.parseColor("#999999")
-            }
-            axisRight.isEnabled = false
-            legend.isEnabled = false
-        }
-    }
-
-    private fun configurePieChart(chart: PieChart, centerText: String) {
-        chart.apply {
-            setUsePercentValues(true)
-            description.isEnabled = false
-            setExtraOffsets(5f, 10f, 5f, 5f)
-            dragDecelerationFrictionCoef = 0.95f
-            isDrawHoleEnabled = true
-            setHoleColor(Color.WHITE)
-            setTransparentCircleColor(Color.WHITE)
-            setTransparentCircleAlpha(110)
-            holeRadius = 58f
-            transparentCircleRadius = 61f
-            setDrawCenterText(true)
-            this.centerText = centerText
-            legend.isEnabled = false
-        }
-    }
-
-    private var currentHeatmapTotals: List<Float> = emptyList()
 
     private fun observeData() {
         viewModel.topSpending.observe(viewLifecycleOwner) {
             topSpendingAdapter.updateData(it)
         }
 
-        viewModel.chartData.observe(viewLifecycleOwner) { (entries, labels) ->
-            updateLineChart(entries, labels)
-        }
-
         viewModel.filteredTransactions.observe(viewLifecycleOwner) { transactions ->
-            updatePieCharts(transactions)
+            updateCharts(transactions)
         }
 
-        viewModel.heatmapData.observe(viewLifecycleOwner) {
-            updateHeatmapUI(it)
-        }
-
-        viewModel.heatmapTotals.observe(viewLifecycleOwner) {
-            currentHeatmapTotals = it
+        viewModel.exportState.observe(viewLifecycleOwner) { state ->
+            when (state) {
+                is AnalyticsViewModel.ExportState.Loading -> {
+                    binding.btnExportPdf.isEnabled = false
+                    Snackbar.make(binding.root, "Generating PDF...", Snackbar.LENGTH_SHORT).show()
+                }
+                is AnalyticsViewModel.ExportState.Success -> {
+                    binding.btnExportPdf.isEnabled = true
+                    showExportSuccess(state.file)
+                }
+                is AnalyticsViewModel.ExportState.Error -> {
+                    binding.btnExportPdf.isEnabled = true
+                    Toast.makeText(requireContext(), state.message, Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
-    private fun updateLineChart(entries: List<Entry>, labels: List<String>) {
-        if (entries.isEmpty()) {
-            binding.lineChart.clear()
-            return
-        }
-
-        binding.lineChart.xAxis.apply {
-            valueFormatter = com.github.mikephil.charting.formatter.IndexAxisValueFormatter(labels)
-            granularity = 1f
-            // Increase label count for better detail
-            val labelCount = if (labels.size > 20) 12 else labels.size
-            setLabelCount(labelCount, false)
-            // Rotate labels slightly if they are dense
-            labelRotationAngle = if (labels.size > 15) -15f else 0f
-        }
-
-        // Set Marker
-        val marker = CustomMarkerView(requireContext(), R.layout.layout_chart_marker, labels)
-        marker.chartView = binding.lineChart
-        binding.lineChart.marker = marker
-
-        val dataSet = LineDataSet(entries, "Expenses").apply {
-            mode = LineDataSet.Mode.CUBIC_BEZIER
-            color = Color.parseColor("#2ABFBF")
-            setCircleColor(Color.parseColor("#2ABFBF"))
-            lineWidth = 3f
-            setDrawValues(false)
-            setDrawFilled(true)
-            fillDrawable = ContextCompat.getDrawable(requireContext(), R.drawable.budget_progress_drawable)
-            setDrawHorizontalHighlightIndicator(false)
-            setDrawVerticalHighlightIndicator(true)
-            highLightColor = Color.parseColor("#2ABFBF")
-        }
-
-        binding.lineChart.data = LineData(dataSet)
-        binding.lineChart.invalidate()
+    private fun showExportSuccess(file: java.io.File) {
+        Snackbar.make(binding.root, "PDF saved to Downloads", Snackbar.LENGTH_LONG)
+            .setAction("Open") {
+                val uri = FileProvider.getUriForFile(
+                    requireContext(),
+                    "${requireContext().packageName}.provider",
+                    file
+                )
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, "application/pdf")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                startActivity(Intent.createChooser(intent, "Open PDF"))
+            }
+            .show()
     }
 
-    private fun updatePieCharts(transactions: List<Transaction>) {
-        val categoryMap = transactions.groupBy { it.category }.mapValues { it.value.sumOf { t -> t.amount } }
-        val categoryEntries = categoryMap.map { PieEntry(it.value.toFloat(), it.key) }
+    private fun updateCharts(transactions: List<Transaction>) {
+        val expenses = transactions.filter { it.transactionType == Transaction.TYPE_EXPENSE }
         
-        val accountMap = transactions.groupBy { it.accountName }.mapValues { it.value.sumOf { t -> t.amount } }
-        val accountEntries = accountMap.map { PieEntry(it.value.toFloat(), it.key) }
-
-        setPieData(binding.pieChartCategory, categoryEntries)
-        setPieData(binding.pieChartAccount, accountEntries)
+        updateLineChart(expenses)
+        updatePieChart(expenses)
+        updateHeatmap(expenses)
+        
+        if (transactions.isEmpty()) {
+            Toast.makeText(requireContext(), "No data for selected month", Toast.LENGTH_SHORT).show()
+        }
     }
 
-    private fun setPieData(chart: PieChart, entries: List<PieEntry>) {
-        if (entries.isEmpty()) {
-            chart.clear()
-            return
+    private fun updateLineChart(transactions: List<Transaction>) {
+        val cal = viewModel.selectedMonthCalendar
+        val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+        val currentCal = Calendar.getInstance()
+        
+        val isCurrentMonth = cal.get(Calendar.YEAR) == currentCal.get(Calendar.YEAR) &&
+                           cal.get(Calendar.MONTH) == currentCal.get(Calendar.MONTH)
+        
+        val maxDay = if (isCurrentMonth) currentCal.get(Calendar.DAY_OF_MONTH) else daysInMonth
+        
+        val dailySpending = mutableMapOf<Int, Double>()
+        transactions.forEach {
+            val tCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+            val day = tCal.get(Calendar.DAY_OF_MONTH)
+            dailySpending[day] = (dailySpending[day] ?: 0.0) + it.amount
         }
 
-        // Set Marker
-        val marker = CustomMarkerView(requireContext(), R.layout.layout_chart_marker)
-        marker.chartView = chart
-        chart.marker = marker
-
-        val dataSet = PieDataSet(entries, "").apply {
-            colors = listOf(
-                Color.parseColor("#2ABFBF"),
-                Color.parseColor("#F7931A"),
-                Color.parseColor("#1B1B1B"),
-                Color.parseColor("#AAAAAA")
-            )
-            sliceSpace = 3f
-            setDrawValues(false)
+        val entries = mutableListOf<Entry>()
+        for (i in 1..maxDay) {
+            entries.add(Entry(i.toFloat(), dailySpending[i]?.toFloat() ?: 0f))
         }
-        chart.data = PieData(dataSet)
-        chart.invalidate()
+
+        val dataSet = LineDataSet(entries, "Daily Spending")
+        dataSet.color = Color.parseColor("#5B4CF5")
+        dataSet.setCircleColor(Color.parseColor("#5B4CF5"))
+        dataSet.lineWidth = 2f
+        dataSet.circleRadius = 3f
+        dataSet.setDrawCircleHole(false)
+        dataSet.valueTextSize = 0f
+        dataSet.setDrawFilled(true)
+        dataSet.fillColor = Color.parseColor("#5B4CF5")
+        dataSet.fillAlpha = 50
+
+        val labels = (0..maxDay + 1).map { "Day $it" }
+        val markerView = CustomMarkerView(requireContext(), R.layout.layout_chart_marker, labels)
+
+        binding.lineChart.apply {
+            data = LineData(dataSet)
+            description.isEnabled = false
+            legend.isEnabled = false
+            xAxis.position = XAxis.XAxisPosition.BOTTOM
+            xAxis.setDrawGridLines(false)
+            xAxis.textColor = Color.parseColor("#999999")
+            axisLeft.setDrawGridLines(true)
+            axisLeft.textColor = Color.parseColor("#999999")
+            axisRight.isEnabled = false
+            setScaleEnabled(false)
+            setPinchZoom(false)
+            isDoubleTapToZoomEnabled = false
+            marker = markerView
+            animateX(1000)
+            invalidate()
+        }
     }
 
-    private fun updateHeatmapUI(intensities: List<Float>) {
+    private fun updatePieChart(transactions: List<Transaction>) {
+        val categoryData = transactions.groupBy { it.category }
+            .map { PieEntry(it.value.sumOf { t -> t.amount }.toFloat(), it.key) }
+
+        val dataSet = PieDataSet(categoryData, "")
+        dataSet.colors = listOf(
+            Color.parseColor("#5B4CF5"),
+            Color.parseColor("#378ADD"),
+            Color.parseColor("#1D9E75"),
+            Color.parseColor("#F7931A"),
+            Color.parseColor("#D85A30")
+        )
+        dataSet.valueTextColor = Color.WHITE
+        dataSet.valueTextSize = 12f
+
+        val pieMarker = CustomMarkerView(requireContext(), R.layout.layout_chart_marker)
+
+        binding.pieChartCategory.apply {
+            data = PieData(dataSet)
+            description.isEnabled = false
+            legend.isEnabled = false
+            isDrawHoleEnabled = true
+            setHoleColor(Color.TRANSPARENT)
+            marker = pieMarker
+            animateY(1000)
+            invalidate()
+        }
+        
+        val accountData = transactions.groupBy { it.accountName }
+            .map { PieEntry(it.value.sumOf { t -> t.amount }.toFloat(), it.key) }
+            
+        val accountDataSet = PieDataSet(accountData, "")
+        accountDataSet.colors = dataSet.colors
+        binding.pieChartAccount.apply {
+            data = PieData(accountDataSet)
+            description.isEnabled = false
+            legend.isEnabled = false
+            isDrawHoleEnabled = true
+            setHoleColor(Color.TRANSPARENT)
+            marker = pieMarker
+            animateY(1000)
+            invalidate()
+        }
+    }
+
+    private fun updateHeatmap(transactions: List<Transaction>) {
         binding.heatmapGrid.removeAllViews()
         
-        // Calculate the first day of the month offset
-        val tempCal = selectedCalendar.clone() as Calendar
-        tempCal.set(Calendar.DAY_OF_MONTH, 1)
-        val firstDayOfWeek = tempCal.get(Calendar.DAY_OF_WEEK) // 1=Sun, 2=Mon...
-        val offset = firstDayOfWeek - 1 // 0=Sun, 1=Mon...
-
-        val screenWidth = resources.displayMetrics.widthPixels
-        val padding = 40 // Total padding from parent (20dp * 2)
-        val cellSize = (screenWidth - (padding * resources.displayMetrics.density).toInt()) / 7
+        val cal = viewModel.selectedMonthCalendar.clone() as Calendar
+        cal.set(Calendar.DAY_OF_MONTH, 1)
+        val startDayOfWeek = cal.get(Calendar.DAY_OF_WEEK) - 1 // 0 = Sun
+        val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
         
-        // Add empty offset cells
-        for (i in 0 until offset) {
+        val currentCal = Calendar.getInstance()
+        val isCurrentMonth = cal.get(Calendar.YEAR) == currentCal.get(Calendar.YEAR) &&
+                           cal.get(Calendar.MONTH) == currentCal.get(Calendar.MONTH)
+        val today = currentCal.get(Calendar.DAY_OF_MONTH)
+
+        val dailySpending = mutableMapOf<Int, Double>()
+        transactions.forEach {
+            val tCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+            val day = tCal.get(Calendar.DAY_OF_MONTH)
+            dailySpending[day] = (dailySpending[day] ?: 0.0) + it.amount
+        }
+
+        // Add empty cells for padding
+        for (i in 0 until startDayOfWeek) {
             val emptyView = View(requireContext())
-            emptyView.layoutParams = ViewGroup.LayoutParams(cellSize, cellSize)
-            binding.heatmapGrid.addView(emptyView)
+            val params = android.widget.GridLayout.LayoutParams()
+            params.width = 0
+            params.height = resources.getDimensionPixelSize(R.dimen.heatmap_cell_size)
+            params.columnSpec = android.widget.GridLayout.spec(i, 1f)
+            emptyView.layoutParams = params
+            binding.heatmapGrid.addView(emptyView)https://github.com/tilak-star308/ExpenseSense
         }
 
-        // Add date cells
-        intensities.forEachIndexed { index, intensity ->
-            val dayOfMonth = index + 1
-            val cellBinding = com.amshu.expensesense.databinding.ItemHeatmapCellBinding.inflate(
-                LayoutInflater.from(requireContext()), binding.heatmapGrid, false
-            )
-            
-            cellBinding.root.layoutParams = ViewGroup.LayoutParams(cellSize, cellSize)
-            cellBinding.tvDate.text = dayOfMonth.toString()
-            
-            val alpha = (intensity * 255).toInt().coerceAtMost(255).coerceAtLeast(0)
-            val overlayAlpha = if (intensity > 0) alpha.coerceAtLeast(30) else 0
-            cellBinding.colorOverlay.setBackgroundColor(Color.argb(overlayAlpha, 42, 191, 191))
-            
-            // Adjust text color based on background intensity for readability
-            if (intensity > 0.6) {
-                cellBinding.tvDate.setTextColor(Color.WHITE)
-            } else {
-                cellBinding.tvDate.setTextColor(Color.parseColor("#1A1A2E"))
-            }
+        for (day in 1..daysInMonth) {
+            val cell = View(requireContext())
+            val size = resources.getDimensionPixelSize(R.dimen.heatmap_cell_size)
+            val params = android.widget.GridLayout.LayoutParams()
+            params.width = 0
+            params.height = size
+            params.setMargins(4, 4, 4, 4)
+            val col = (startDayOfWeek + day - 1) % 7
+            params.columnSpec = android.widget.GridLayout.spec(col, 1f)
+            cell.layoutParams = params
 
-            cellBinding.root.setOnClickListener {
-                val total = if (index < currentHeatmapTotals.size) currentHeatmapTotals[index] else 0f
-                showHeatmapMarker(cellBinding.root, dayOfMonth, total)
+            val amount = dailySpending[day] ?: 0.0
+            val isFuture = isCurrentMonth && day > today
+            
+            cell.background = android.graphics.drawable.GradientDrawable().apply {
+                cornerRadius = 8f
+                setColor(when {
+                    isFuture -> Color.parseColor("#F5F5F7")
+                    amount <= 0 -> Color.parseColor("#F0F0F0")
+                    amount < 500 -> Color.parseColor("#D1C4E9")
+                    amount < 2000 -> Color.parseColor("#9575CD")
+                    else -> Color.parseColor("#5B4CF5")
+                })
             }
+            cell.setOnClickListener {
+                if (isFuture) return@setOnClickListener
 
-            binding.heatmapGrid.addView(cellBinding.root)
+                val popupView = layoutInflater.inflate(R.layout.layout_chart_marker, null)
+                val tvTitle = popupView.findViewById<TextView>(R.id.tvMarkerTitle)
+                val tvValue = popupView.findViewById<TextView>(R.id.tvMarkerValue)
+
+                tvTitle.text = "Day $day"
+                tvValue.text = if (amount > 0) "₹${String.format("%.2f", amount)}" else "No transactions"
+
+                val popupWindow = android.widget.PopupWindow(
+                    popupView,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    true
+                )
+
+                popupWindow.elevation = 8f
+                // Make it transparent so layout corners work
+                popupWindow.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+
+                // Measure popup to center it over the cell
+                popupView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
+                val xOffset = -(popupView.measuredWidth - cell.width) / 2
+                val yOffset = -(popupView.measuredHeight + cell.height + 8) // Show just above the cell
+
+                popupWindow.showAsDropDown(cell, xOffset, yOffset)
+            }
+            binding.heatmapGrid.addView(cell)
         }
-    }
-
-    private fun showHeatmapMarker(anchorView: View, day: Int, amount: Float) {
-        val markerView = LayoutInflater.from(requireContext()).inflate(R.layout.layout_chart_marker, null)
-        val tvTitle = markerView.findViewById<TextView>(R.id.tvMarkerTitle)
-        val tvValue = markerView.findViewById<TextView>(R.id.tvMarkerValue)
-
-        tvTitle.text = "Day $day"
-        tvValue.text = "₹${String.format("%.2f", amount)}"
-
-        val popup = android.widget.PopupWindow(
-            markerView,
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
-            android.view.ViewGroup.LayoutParams.WRAP_CONTENT,
-            true
-        )
-
-        popup.elevation = 10f
-        popup.overlapAnchor = true
-
-        // Show above the anchor
-        markerView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED)
-        val xOffset = (anchorView.width - markerView.measuredWidth) / 2
-        // Since overlapAnchor is true, yOffset starts from top of anchor
-        val yOffset = -markerView.measuredHeight - 10
-
-        popup.showAsDropDown(anchorView, xOffset, yOffset)
-
-        // Auto-hide after some time
-        anchorView.postDelayed({
-            if (popup.isShowing) {
-                popup.dismiss()
-            }
-        }, 3000)
     }
 
     override fun onDestroyView() {

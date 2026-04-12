@@ -14,5 +14,6 @@ data class CreditCard(
     val availableLimit: Double? = null,
     val drawableName: String? = null,
     val orderIndex: Int = 0,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val documentId: String = ""
 )
