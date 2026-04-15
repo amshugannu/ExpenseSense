@@ -37,6 +37,9 @@ import androidx.cardview.widget.CardView
 import androidx.core.view.ViewCompat
 import androidx.fragment.app.activityViewModels
 import java.util.stream.Collectors
+import androidx.appcompat.app.AlertDialog
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class HomeFragment : Fragment() {
 
@@ -68,11 +71,16 @@ class HomeFragment : Fragment() {
     private lateinit var tvBudgetSpent: TextView
     private lateinit var tvBudgetRemaining: TextView
     private lateinit var tvBudgetTotal: TextView
+    private lateinit var cardBudget: View
 
     private var accountList = mutableListOf<Account>()
     private lateinit var accountAdapter: AccountMiniAdapter
     private lateinit var tvHeaderCashBalance: TextView
     private val expenseViewModel: ExpenseViewModel by activityViewModels()
+    
+    // Privacy State
+    private val revealedCardNumbers = mutableSetOf<String>()
+    private val visibilityHandler = android.os.Handler(android.os.Looper.getMainLooper())
 
 
     // Swipe stacks
@@ -152,6 +160,7 @@ class HomeFragment : Fragment() {
         tvBudgetSpent = view.findViewById(R.id.tvBudgetSpent)
         tvBudgetRemaining = view.findViewById(R.id.tvBudgetRemaining)
         tvBudgetTotal = view.findViewById(R.id.tvBudgetTotal)
+        cardBudget = view.findViewById(R.id.cardBudget)
 
         rvTransactions.layoutManager = LinearLayoutManager(requireContext())
 
@@ -194,6 +203,40 @@ class HomeFragment : Fragment() {
         view.findViewById<View>(R.id.tvSeeAllTransactions).setOnClickListener {
             startActivity(Intent(requireContext(), TransactionsActivity::class.java))
         }
+
+        view.findViewById<View>(R.id.cardViewInsights).setOnClickListener {
+            startActivity(Intent(requireContext(), AiInsightsActivity::class.java))
+        }
+
+        view.findViewById<View>(R.id.cardAddExpense).setOnClickListener {
+            startActivity(Intent(requireContext(), AddExpenseActivity::class.java))
+        }
+
+        setupPersonalizedGreeting(view)
+        
+        // Trigger Smart Popups
+        view.postDelayed({ checkAndShowPopups() }, 1000)
+    }
+
+    private fun setupPersonalizedGreeting(view: View) {
+        val tvGreeting: TextView = view.findViewById(R.id.tvGreeting)
+        val tvUsername: TextView = view.findViewById(R.id.tvUsername)
+
+        val prefs = requireContext().getSharedPreferences("ExpenseSensePrefs", android.content.Context.MODE_PRIVATE)
+        val fullName = prefs.getString("user_full_name", "User") ?: "User"
+        
+        // Split name to show only first name for a friendlier feel
+        val firstName = fullName.split(" ").firstOrNull() ?: fullName
+        tvUsername.text = firstName
+
+        val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+        val greeting = when (hour) {
+            in 0..11 -> "Good Morning,"
+            in 12..15 -> "Good Afternoon,"
+            in 16..20 -> "Good Evening,"
+            else -> "Good Night,"
+        }
+        tvGreeting.text = greeting
     }
 
     private fun setupBackgroundSwipe() {
@@ -280,6 +323,9 @@ class HomeFragment : Fragment() {
         cardViewModel.loadCards()
     }
 
+       // --- Overlap Logic for Cards ---
+    // Instead of a list, we use a FrameLayout and manually calculate offsets.
+    // Each card is shifted based on its position 'i' in the stack.
     private fun renderCardStack(cards: List<CardUIModel>) {
         if (cards.isEmpty()) {
             cardStackContainer.removeAllViews()
@@ -320,8 +366,11 @@ class HomeFragment : Fragment() {
                     .start()
                 ViewCompat.setElevation(cardView, 100 * density)
             } else {
+                // Here is the CORE overlapping calculation:
+                // targetX: moves to right, targetY: moves up for a staggered look
                 val targetX = i * 24 * density
                 val targetY = -i * 14 * density
+                
                 val scale = if (i == 0) 1.0f else 0.95f - ((i - 1) * 0.02f)
                 val elevation = (cards.size - i).toFloat() * 2 * density
                 cardView.cardElevation = elevation
@@ -361,9 +410,31 @@ class HomeFragment : Fragment() {
         val tvCardNumber = cardView.findViewById<TextView>(R.id.tvCardNumberDisplay)
         val tvCardHolder = cardView.findViewById<TextView>(R.id.tvCardHolderDisplay)
         val tvBalance = cardView.findViewById<TextView>(R.id.tvBalanceDisplay)
+        val ivEyeToggle = cardView.findViewById<ImageView>(R.id.ivEyeToggle)
 
         tvCardNumber.text = maskCardNumber(model.cardNumber)
         tvCardHolder.text = model.cardHolderName.uppercase()
+
+        val privacyMode = BalancePrivacyManager.getPrivacyMode(requireContext())
+        val isRevealed = revealedCardNumbers.contains(model.cardNumber)
+
+        val formatBalance = when (model) {
+            is CardUIModel.Credit -> "Avl: ₹${String.format("%.2f", model.availableLimit)}"
+            is CardUIModel.Debit -> {
+                val balance = accountBalances[model.linkedBankAccountId] ?: 0.0
+                "Bal: ₹${String.format("%.2f", balance)}"
+            }
+        }
+
+        if (privacyMode == BalancePrivacyManager.MODE_ALWAYS_VISIBLE || isRevealed) {
+            tvBalance.text = formatBalance
+        } else {
+            tvBalance.text = BalancePrivacyManager.maskBalance(formatBalance)
+        }
+
+        ivEyeToggle.setOnClickListener {
+            handleEyeClick(model.cardNumber, privacyMode)
+        }
 
         when (model) {
             is CardUIModel.Credit -> {
@@ -373,10 +444,7 @@ class HomeFragment : Fragment() {
                     requireContext().packageName
                 )
                 ivCardBg.setImageResource(if (resId != 0) resId else R.drawable.defaultcreditcard)
-                android.util.Log.d("UI_DEBUG", "Setting balance on UI (Credit Card ${model.cardName}): ${model.availableLimit}")
-                tvBalance.text = "Avl: ₹${String.format("%.2f", model.availableLimit)}"
             }
-
             is CardUIModel.Debit -> {
                 val resId = resources.getIdentifier(
                     model.drawableName ?: "",
@@ -384,9 +452,62 @@ class HomeFragment : Fragment() {
                     requireContext().packageName
                 )
                 ivCardBg.setImageResource(if (resId != 0) resId else R.drawable.defaultdebitcard)
-                val balance = accountBalances[model.linkedBankAccountId] ?: 0.0
-                android.util.Log.d("UI_DEBUG", "Setting balance on UI (Debit Card ${model.cardName} / Account ${model.linkedBankAccountId}): $balance")
-                tvBalance.text = "Bal: ₹${String.format("%.2f", balance)}"
+            }
+        }
+    }
+
+    private fun handleEyeClick(cardNumber: String, mode: Int) {
+        when (mode) {
+            BalancePrivacyManager.MODE_SHOW_ON_CLICK -> {
+                revealBalance(cardNumber, 5000)
+            }
+            BalancePrivacyManager.MODE_SHOW_ON_CLICK_PIN -> {
+                showPinVerificationDialog {
+                    revealBalance(cardNumber, 20000)
+                }
+            }
+        }
+    }
+
+    private fun revealBalance(cardNumber: String, duration: Long) {
+        revealedCardNumbers.add(cardNumber)
+        renderCardStack(activeStack)
+        
+        visibilityHandler.postDelayed({
+            revealedCardNumbers.remove(cardNumber)
+            renderCardStack(activeStack)
+        }, duration)
+    }
+
+    private fun showPinVerificationDialog(onSuccess: () -> Unit) {
+        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_pin_setup, null)
+        val etPin = dialogView.findViewById<EditText>(R.id.etPin)
+        val tvTitle = dialogView.findViewById<TextView>(R.id.tvPinTitle)
+        val tvSubtitle = dialogView.findViewById<TextView>(R.id.tvPinSubtitle)
+        val tvError = dialogView.findViewById<TextView>(R.id.tvPinError)
+
+        tvTitle.text = "Enter Security PIN"
+        tvSubtitle.text = "Please enter your 6-digit PIN to show the balance."
+        etPin.hint = "Enter PIN"
+
+        val dialog = AlertDialog.Builder(requireContext())
+            .setView(dialogView)
+            .setPositiveButton("Verify", null)
+            .setNegativeButton("Cancel", null)
+            .create()
+
+        dialog.show()
+
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
+            val enteredPin = etPin.text.toString()
+            val savedPin = BalancePrivacyManager.getPIN(requireContext())
+            if (enteredPin == savedPin) {
+                onSuccess()
+                dialog.dismiss()
+            } else {
+                tvError.text = "Incorrect PIN"
+                tvError.visibility = View.VISIBLE
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
             }
         }
     }
@@ -394,6 +515,8 @@ class HomeFragment : Fragment() {
     private val dragHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var dragRunnable: Runnable? = null
 
+    // --- Swipe Logic for Cards ---
+    // Handles horizontal dismissal (swipe left) and vertical reordering (long press).
     private fun attachSwipeListener(cardView: CardView) {
         cardView.setOnTouchListener { v, event ->
             when (event.action) {
@@ -515,6 +638,7 @@ class HomeFragment : Fragment() {
         }
     }
 
+    // Logic to move a dismissed card to the background "leftStack"
     private fun animateCardDismissal(view: View, isLeft: Boolean) {
         if (!isLeft) return
         val density = resources.displayMetrics.density
@@ -602,17 +726,21 @@ class HomeFragment : Fragment() {
         renderCardStack(activeStack)
     }
 
-    private fun maskCardNumber(number: String): String {
-        return if (number.length < 4) number else "**** ${number.takeLast(4)}"
-    }
 
     private fun setupBudgetViewModel() {
         val database = AppDatabase.getDatabase(requireContext())
         val repository = BudgetRepository(database.budgetDao(), database.transactionDao())
         val factory = BudgetViewModelFactory(repository)
         budgetViewModel = ViewModelProvider(this, factory).get(BudgetViewModel::class.java)
-        budgetViewModel.budget.observe(viewLifecycleOwner) { updateBudgetUI(it) }
+        budgetViewModel.budget.observe(viewLifecycleOwner) { budget ->
+            updateBudgetUI(budget)
+        }
         budgetViewModel.loadCurrentMonthBudget()
+
+        cardBudget.setOnClickListener {
+            val intent = Intent(requireContext(), BudgetDetailsActivity::class.java)
+            startActivity(intent)
+        }
     }
 
     private fun updateBudgetUI(budget: Budget?) {
@@ -629,19 +757,139 @@ class HomeFragment : Fragment() {
                 btnSetBudget.visibility = View.GONE
                 btnEditBudget.visibility = View.VISIBLE
             }
-            val spent = budget.totalBudget - budget.remainingBudget
+            val totalBudget = budget.totalBudget
+            val remainingBudget = budget.remainingBudget
+            val spent = totalBudget - remainingBudget
+            
             tvBudgetSpent.text = "₹%.2f".format(spent)
-            tvBudgetRemaining.text = "₹%.2f".format(budget.remainingBudget)
-            tvBudgetTotal.text = "Total Budget: ₹%.2f".format(budget.totalBudget)
-            pbBudget.progress = ((spent / budget.totalBudget) * 100).toInt().coerceIn(0, 100)
-            if (budget.remainingBudget < 0) {
-                tvBudgetRemaining.setTextColor(Color.RED)
-                pbBudget.progressDrawable.setTint(Color.RED)
+            tvBudgetRemaining.text = "₹%.2f".format(remainingBudget)
+            tvBudgetTotal.text = "Total Budget: ₹%.2f".format(totalBudget)
+            
+            val progress = if (totalBudget > 0) ((spent / totalBudget) * 100).toInt() else 0
+            pbBudget.progress = progress.coerceIn(0, 100)
+            
+            // Step 5: Color Logic
+            val colorTeal = Color.parseColor("#2ABFBF")
+            val colorOrange = Color.parseColor("#FFA726")
+            val colorRed = Color.parseColor("#EF5350")
+            
+            val indicatorColor = when {
+                progress >= 100 -> colorRed
+                progress >= 80 -> colorOrange
+                else -> colorTeal
+            }
+            
+            pbBudget.progressDrawable.setTint(indicatorColor)
+            
+            if (remainingBudget < 0) {
+                tvBudgetRemaining.setTextColor(colorRed)
             } else {
-                tvBudgetRemaining.setTextColor(Color.parseColor("#2ABFBF"))
-                pbBudget.progressDrawable.setTint(Color.parseColor("#2ABFBF"))
+                tvBudgetRemaining.setTextColor(colorTeal)
             }
         }
+    }
+
+    private fun checkAndShowPopups() {
+        if (!isAdded) return
+        val context = requireContext()
+        val prefs = context.getSharedPreferences("ExpenseSensePrefs", android.content.Context.MODE_PRIVATE)
+        val currentMonth = MonthUtils.getCurrentMonthKey()
+        val prevMonth = MonthUtils.getPreviousMonthKey()
+
+        // 1. Check Savings achievement from previous month
+        val savingsDismissed = prefs.getBoolean("shownSavedPopup_$prevMonth", false)
+        if (!savingsDismissed) {
+            viewLifecycleOwner.lifecycleScope.launch {
+                val db = AppDatabase.getDatabase(context)
+                val budgetRepo = BudgetRepository(db.budgetDao(), db.transactionDao())
+                val prevBudget = budgetRepo.getBudget(prevMonth)
+                if (prevBudget != null && prevBudget.totalBudget > 0) {
+                    val prevSpent = budgetRepo.getMonthlySpent(prevMonth)
+                    if (prevSpent < prevBudget.totalBudget) {
+                        val savings = prevBudget.totalBudget - prevSpent
+                        showSavingsDialog(savings, prevMonth)
+                    } else {
+                        // Even if they didn't save, mark it as shown so we don't check again
+                        prefs.edit().putBoolean("shownSavedPopup_$prevMonth", true).apply()
+                    }
+                }
+            }
+        }
+
+        // 2. Check for missing budget for current month
+        budgetViewModel.budget.observe(viewLifecycleOwner) { budget ->
+            if (budget == null) {
+                showBudgetSetupDialog()
+            } else {
+                // 3. Check for exceeded budget
+                val exceededDismissed = prefs.getBoolean("shownExceededPopup_$currentMonth", false)
+                if (!exceededDismissed) {
+                    val spent = budget.totalBudget - budget.remainingBudget
+                    if (spent >= budget.totalBudget && budget.totalBudget > 0) {
+                        showExceededDialog(currentMonth)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun showBudgetSetupDialog() {
+        if (!isAdded) return
+        val currentMonth = MonthUtils.getCurrentMonthKey()
+        val prefs = requireContext().getSharedPreferences("ExpenseSensePrefs", android.content.Context.MODE_PRIVATE)
+        
+        // Don't show again in the same session if they dismissed it
+        if (prefs.getString("last_setup_prompt", "") == currentMonth) return
+
+        val view = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_budget_setup, null)
+        val etAmount = view.findViewById<EditText>(R.id.etBudgetAmount)
+        val tvTitle = view.findViewById<TextView>(R.id.tvDialogTitle)
+        tvTitle.text = "Set Budget for ${MonthUtils.formatMonthDisplay(currentMonth)}"
+
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setView(view)
+            .setCancelable(false)
+            .setPositiveButton("Set Budget") { _, _ ->
+                val amount = etAmount.text.toString().toDoubleOrNull()
+                if (amount != null && amount > 0) {
+                    budgetViewModel.setMonthlyBudget(amount)
+                    Toast.makeText(requireContext(), "Budget Set Successfully", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("Later") { _, _ ->
+                prefs.edit().putString("last_setup_prompt", currentMonth).apply()
+            }
+            .show()
+    }
+
+    private fun showExceededDialog(monthKey: String) {
+        if (!isAdded) return
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Budget Limit Reached")
+            .setMessage("You've reached your budget for ${MonthUtils.formatMonthDisplay(monthKey)}. Review your spending to stay on track.")
+            .setPositiveButton("Review Spending") { _, _ ->
+                startActivity(Intent(requireContext(), BudgetDetailsActivity::class.java))
+            }
+            .setNegativeButton("Got it") { dialog, _ ->
+                val prefs = requireContext().getSharedPreferences("ExpenseSensePrefs", android.content.Context.MODE_PRIVATE)
+                prefs.edit().putBoolean("shownExceededPopup_$monthKey", true).apply()
+                dialog.dismiss()
+            }
+            .show()
+    }
+
+    private fun showSavingsDialog(savings: Double, monthKey: String) {
+        if (!isAdded) return
+        val monthName = MonthUtils.formatMonthDisplay(monthKey)
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setTitle("Congratulations 🎉")
+            .setMessage("Amazing job! You saved ₹${String.format("%.2f", savings)} in $monthName. Keep up the great work!")
+            .setPositiveButton("Awesome!") { dialog, _ ->
+                val prefs = requireContext().getSharedPreferences("ExpenseSensePrefs", android.content.Context.MODE_PRIVATE)
+                prefs.edit().putBoolean("shownSavedPopup_$monthKey", true).apply()
+                dialog.dismiss()
+            }
+            .show()
     }
 
     private fun showInputMode(isInput: Boolean) {
@@ -718,6 +966,7 @@ class HomeFragment : Fragment() {
                             putExtra("referenceId", transaction.referenceId)
                             putExtra("note", transaction.note)
                             putExtra("accountName", transaction.accountName)
+                            putExtra("transactionType", transaction.transactionType)
                         }
                     detailsLauncher.launch(intent)
                 }
@@ -940,6 +1189,9 @@ class HomeFragment : Fragment() {
                     isCurrentlyActive: Boolean
                 ) {
                     if (viewHolder is TransactionAdapter.TransactionViewHolder) {
+                        // --- Compact List Structure Logic ---
+                        // The "Compact" look is achieved by using item_transaction.xml which keeps 
+                        // vertical padding small and uses a single row for metadata (Date • Payment).
                         ItemTouchHelper.Callback.getDefaultUIUtil().onDraw(
                             c, recyclerView, viewHolder.cardForeground, dX, dY,
                             actionState, isCurrentlyActive
@@ -968,6 +1220,13 @@ class HomeFragment : Fragment() {
                 }
             }
             ItemTouchHelper(swipeCallback).attachToRecyclerView(rvTransactions)
-        }
+    }
 
+    private fun maskCardNumber(number: String?): String {
+        if (number.isNullOrEmpty()) return "**** ****"
+        val clean = number.replace(" ", "")
+        return if (clean.length >= 4) {
+            "**** " + clean.takeLast(4)
+        } else "**** ****"
+    }
 }

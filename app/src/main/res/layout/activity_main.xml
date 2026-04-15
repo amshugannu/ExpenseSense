@@ -6,6 +6,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:animateLayoutChanges="true"
     tools:context=".MainActivity">
 
     <!-- Fragment content area — bottom padding prevents overlap with the nav bar -->

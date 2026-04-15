@@ -44,24 +44,32 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvFilters"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal"
+        android:paddingHorizontal="10dp"
+        android:clipToPadding="false"
+        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+        app:layout_constraintTop_toBottomOf="@id/headerLayout"
+        tools:listitem="@layout/item_filter_chip" />
+
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/transactionsCard"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
         android:layout_marginStart="20dp"
         android:layout_marginEnd="20dp"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="16dp"
         android:layout_marginBottom="24dp"
         app:cardCornerRadius="20dp"
         app:cardElevation="6dp"
         app:cardBackgroundColor="#FFFFFF"
         app:strokeWidth="0dp"
-        app:layout_constrainedHeight="true"
-        app:layout_constraintTop_toBottomOf="@id/headerLayout"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintVertical_bias="0.0">
+        app:layout_constraintTop_toBottomOf="@id/rvFilters"
+        app:layout_constraintBottom_toBottomOf="parent">
 
         <FrameLayout
             android:layout_width="match_parent"

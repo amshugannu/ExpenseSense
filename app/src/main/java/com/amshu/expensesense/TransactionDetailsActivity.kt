@@ -52,13 +52,23 @@ class TransactionDetailsActivity : AppCompatActivity() {
 
         findViewById<TextView>(R.id.tvDetailTitle).text = title
         findViewById<TextView>(R.id.tvDetailCategoryName).text = category
-        findViewById<TextView>(R.id.tvDetailAmount).text = "₹%.2f".format(amount)
+
+        val transactionType = intent.getStringExtra("transactionType") ?: Transaction.TYPE_EXPENSE
+        val tvDetailAmount = findViewById<TextView>(R.id.tvDetailAmount)
+        
+        if (transactionType == Transaction.TYPE_INCOME) {
+            tvDetailAmount.text = "+₹%.2f".format(amount)
+            tvDetailAmount.setTextColor(android.graphics.Color.parseColor("#43A047")) // Green
+        } else {
+            tvDetailAmount.text = "-₹%.2f".format(amount)
+            tvDetailAmount.setTextColor(android.graphics.Color.parseColor("#E53935")) // Red
+        }
 
         val sdf = SimpleDateFormat("dd MMM yyyy, hh:mm a", Locale.getDefault())
         findViewById<TextView>(R.id.tvDetailDateTime).text = sdf.format(Date(timestamp))
 
-        val methodString = if (referenceId.isNotBlank() && referenceId != paymentMethod) {
-            if (paymentMethod != "Cash") "$paymentMethod • $referenceId" else referenceId
+        val methodString = if (referenceId.isNotBlank() && referenceId != paymentMethod && paymentMethod != "Cash") {
+            "$paymentMethod • $referenceId"
         } else {
             paymentMethod
         }

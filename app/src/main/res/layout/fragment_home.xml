@@ -5,6 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg_light"
+    android:paddingTop="32dp"
     tools:context=".HomeFragment">
 
     <!-- Scrollable Content -->
@@ -72,32 +73,20 @@
                     tools:text="You spent ₹1,200 this month" />
 
 
-                <ImageView
-                    android:id="@+id/ivToolbarLogo"
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:layout_marginEnd="16dp"
-                    android:scaleType="centerCrop"
-                    android:src="@drawable/ic_user_placeholder"
-                    app:layout_constraintBottom_toBottomOf="@id/tvUsername"
-                    app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintTop_toTopOf="@id/tvGreeting" />
-
-                <!-- Cash Balance Pill -->
                 <LinearLayout
                     android:id="@+id/layoutHeaderCash"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="12dp"
+                    android:layout_marginEnd="16dp"
                     android:background="@drawable/bg_cash_pill"
                     android:elevation="2dp"
                     android:gravity="center_vertical"
                     android:orientation="horizontal"
                     android:paddingHorizontal="10dp"
                     android:paddingVertical="5dp"
-                    app:layout_constraintBottom_toBottomOf="@id/ivToolbarLogo"
-                    app:layout_constraintEnd_toStartOf="@id/ivToolbarLogo"
-                    app:layout_constraintTop_toTopOf="@id/ivToolbarLogo">
+                    app:layout_constraintBottom_toBottomOf="@id/tvUsername"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    app:layout_constraintTop_toTopOf="@id/tvGreeting">
 
                     <TextView
                         android:id="@+id/tvHeaderCashBalance"

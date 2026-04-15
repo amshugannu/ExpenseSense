@@ -260,7 +260,7 @@ class PaymentRepository(
 
     private fun updateBudget(transaction: Transaction, isDelete: Boolean): Budget? {
         if (transaction.transactionType == Transaction.TYPE_INCOME) return null
-        val monthYear = SimpleDateFormat("MM-yyyy", Locale.getDefault())
+        val monthYear = SimpleDateFormat("yyyy-MM", Locale.getDefault())
             .format(Date(transaction.timestamp))
         val currentBudget = budgetDao.getBudget(monthYear) ?: return null
         val currentSpent = (currentBudget.totalBudget - currentBudget.remainingBudget).coerceAtLeast(0.0)

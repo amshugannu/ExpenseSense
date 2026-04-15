@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:id="@+id/tvPinTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Set 6-Digit PIN"
+        android:textColor="#1A1A2E"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvPinSubtitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Enter a 6-digit security PIN to protect your balance visibility."
+        android:textColor="#999999"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/etPin"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:layout_marginTop="24dp"
+        android:background="@drawable/edit_text_bg"
+        android:gravity="center"
+        android:hint="_ _ _ _ _ _"
+        android:inputType="numberPassword"
+        android:letterSpacing="0.3"
+        android:maxLength="6"
+        android:paddingHorizontal="16dp"
+        android:textColor="#1A1A2E"
+        android:textSize="24sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/tvPinError"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="PIN must be 6 digits"
+        android:textColor="#FF4444"
+        android:textSize="12sp"
+        android:visibility="invisible" />
+
+</LinearLayout>

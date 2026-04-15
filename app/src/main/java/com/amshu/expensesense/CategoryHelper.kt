@@ -5,7 +5,7 @@ object CategoryHelper {
     private val keywordsMap = mapOf(
         "Travel" to listOf("uber", "ola", "rapido", "taxi", "flight", "train", "bus", "metro", "airline", "travel", "hotel", "stay", "airbnb", "booking"),
         "Fuel" to listOf("petrol", "diesel", "fuel", "gas station", "cng", "shell", "hp", "bpcl", "iocl"),
-        "Dinner" to listOf("dinner", "lunch", "breakfast", "restaurant", "cafe", "hotel", "food", "swiggy", "zomato", "kfc", "mcdonald", "burger", "pizza", "starbucks"),
+        "Food" to listOf("dinner", "lunch", "breakfast", "restaurant", "cafe", "hotel", "food", "swiggy", "zomato", "kfc", "mcdonald", "burger", "pizza", "starbucks"),
         "Groceries" to listOf("grocery", "groceries", "milk", "vegetables", "fruit", "supermarket", "mart", "blinkit", "zepto", "bigbasket", "walmart", "egg", "meat"),
         "Movies" to listOf("movie", "cinema", "theatre", "imax", "pvr", "inox", "bookmyshow"),
         "Internet" to listOf("wifi", "broadband", "recharge", "jio", "airtel", "vi", "bsnl", "data", "internet", "modem", "router"),

@@ -17,9 +17,11 @@ class TransactionsActivity : AppCompatActivity() {
 
     private lateinit var btnBack: ImageButton
     private lateinit var rvTransactions: RecyclerView
+    private lateinit var rvFilters: RecyclerView
     private lateinit var tvEmpty: TextView
     private lateinit var adapter: TransactionAdapter
     private var transactionList = mutableListOf<Transaction>()
+    private var currentCategory: String = "All"
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -27,11 +29,13 @@ class TransactionsActivity : AppCompatActivity() {
 
         btnBack = findViewById(R.id.btnBack)
         rvTransactions = findViewById(R.id.rvTransactions)
+        rvFilters = findViewById(R.id.rvFilters)
         tvEmpty = findViewById(R.id.tvEmpty)
 
         btnBack.setOnClickListener { finish() }
 
         rvTransactions.layoutManager = LinearLayoutManager(this)
+        setupFilters()
 
         val detailsLauncher = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == android.app.Activity.RESULT_OK) {
@@ -63,7 +67,7 @@ class TransactionsActivity : AppCompatActivity() {
             }
         }
 
-        adapter = TransactionAdapter(transactionList) { transaction ->
+        adapter = TransactionAdapter(mutableListOf()) { transaction ->
             val intent = Intent(this, TransactionDetailsActivity::class.java).apply {
                 putExtra("id", transaction.id)
                 putExtra("firebaseId", transaction.firebaseId)
@@ -75,12 +79,42 @@ class TransactionsActivity : AppCompatActivity() {
                 putExtra("referenceId", transaction.referenceId)
                 putExtra("note", transaction.note)
                 putExtra("accountName", transaction.accountName)
+                putExtra("transactionType", transaction.transactionType)
             }
             detailsLauncher.launch(intent)
         }
         rvTransactions.adapter = adapter
 
         attachSwipeHelper()
+    }
+
+    private fun setupFilters() {
+        val categories = listOf("All", "Food", "Travel", "Fuel", "Groceries", "Bills", "Medical", "Gas", "Shopping", "Subscriptions", "Movies", "Internet", "Gifts", "other")
+        val filterAdapter = CategoryFilterAdapter(categories) { selectedCategory ->
+            currentCategory = selectedCategory
+            applyFilters()
+        }
+        rvFilters.adapter = filterAdapter
+    }
+
+    private fun applyFilters() {
+        val filteredList = if (currentCategory == "All") {
+            transactionList
+        } else {
+            transactionList.filter { it.category == currentCategory }
+        }
+
+        adapter.records.clear()
+        adapter.records.addAll(filteredList)
+        adapter.notifyDataSetChanged()
+
+        if (adapter.records.isEmpty()) {
+            tvEmpty.visibility = View.VISIBLE
+            rvTransactions.visibility = View.GONE
+        } else {
+            tvEmpty.visibility = View.GONE
+            rvTransactions.visibility = View.VISIBLE
+        }
     }
 
     override fun onResume() {
@@ -112,14 +146,7 @@ class TransactionsActivity : AppCompatActivity() {
                 transactionList.clear()
                 transactionList.addAll(sortedList)
                 adapter.updateCardMap(cardMap)
-                
-                if (transactionList.isEmpty()) {
-                    tvEmpty.visibility = View.VISIBLE
-                    rvTransactions.visibility = View.GONE
-                } else {
-                    tvEmpty.visibility = View.GONE
-                    rvTransactions.visibility = View.VISIBLE
-                }
+                applyFilters()
             }
         }.start()
     }

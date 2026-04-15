@@ -7,12 +7,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.*
+import java.io.IOException
 
 class AnalyticsViewModel(
     application: Application,
     private val repository: TransactionRepository
 ) : AndroidViewModel(application) {
-
+    
     private val _exportState = MutableLiveData<ExportState>()
     val exportState: LiveData<ExportState> = _exportState
 
@@ -56,7 +57,7 @@ class AnalyticsViewModel(
 
     val selectedMonthCalendar: Calendar = Calendar.getInstance()
 
-    fun fetchMonthlyData() {
+    fun fetchMonthlyData(type: String = Transaction.TYPE_EXPENSE) {
         viewModelScope.launch {
             val start = selectedMonthCalendar.clone() as Calendar
             start.set(Calendar.DAY_OF_MONTH, 1)
@@ -72,8 +73,8 @@ class AnalyticsViewModel(
             end.set(Calendar.SECOND, 59)
             end.set(Calendar.MILLISECOND, 999)
 
-            // Top Spending (always 5 for the UI list)
-            val top = repository.getTopSpending(start.timeInMillis, end.timeInMillis, 5)
+            // Top transactions (always 5 for the UI list)
+            val top = repository.getTopSpending(start.timeInMillis, end.timeInMillis, type, 5)
             _topSpending.postValue(top)
 
             // Full list for charts and PDF
@@ -83,26 +84,23 @@ class AnalyticsViewModel(
         }
     }
 
-    fun fetchData(timeRange: String, calendar: Calendar) {
-        android.util.Log.d("VM_DEBUG", "TimeRange: $timeRange")
+    fun fetchData(timeRange: String, calendar: Calendar, type: String = Transaction.TYPE_EXPENSE) {
+        android.util.Log.d("VM_DEBUG", "TimeRange: $timeRange, Type: $type")
         viewModelScope.launch {
             val (start, end) = getTimeRange(timeRange, calendar)
             android.util.Log.d("VM_DEBUG", "Start: $start End: $end")
 
-            val top = repository.getTopSpending(start, end, 5)
+            val top = repository.getTopSpending(start, end, type, 5)
             _topSpending.postValue(top)
 
             val transactions = repository.getTransactionsInRange(start, end)
-            android.util.Log.e("DEBUG_VM", "Transactions fetched: ${transactions.size}")
-
-            transactions.forEach {
-                android.util.Log.e("DEBUG_VM", "TX -> ${it.title}, ${Date(it.timestamp)}")
-            }
-
             _filteredTransactions.postValue(transactions)
         }
     }
 
+    // --- Dynamic Time Range Calculation ---
+    // This helper logic determines the start and end timestamps for the SQL query
+    // based on which tab (Day, Week, Month, Year) the user clicked.
     private fun getTimeRange(range: String, cal: Calendar): Pair<Long, Long> {
 
         val start = cal.clone() as Calendar

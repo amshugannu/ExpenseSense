@@ -65,6 +65,12 @@ class ExpenseSensePdfExporter(private val context: Context) {
     private val C_TEXT2      = Color.parseColor("#666666")
     private val C_DIVIDER    = Color.parseColor("#EAEAEA")
 
+    private var document: PdfDocument? = null
+    private var currentPage: PdfDocument.Page? = null
+    private var canvas: Canvas? = null
+    private var currentY = 0f
+    private var pageNum = 0
+
     private val PIE_COLORS = listOf(
         Color.parseColor("#5B4CF5"),
         Color.parseColor("#378ADD"),
@@ -74,29 +80,19 @@ class ExpenseSensePdfExporter(private val context: Context) {
     )
 
     fun exportToPdf(transactionsSource: List<Transaction>, cal: Calendar): File {
-        // ─────────────────────────────────────────────────────────────────────────────
-        // PART 9: FINAL VERIFICATION LOG (MANDATORY)
-        // ─────────────────────────────────────────────────────────────────────────────
         android.util.Log.e("FINAL_PDF_DATA", "Transactions used in PDF: ${transactionsSource.size}")
-        transactionsSource.forEach {
-            android.util.Log.e("FINAL_PDF_DATA", "TX -> ${it.title}")
-        }
+        
+        val totalIncome = transactionsSource.filter { it.transactionType == Transaction.TYPE_INCOME }.sumOf { it.amount }
+        val totalExpenses = transactionsSource.filter { it.transactionType == Transaction.TYPE_EXPENSE }.sumOf { it.amount }
 
-        // Processing transactionsSource exclusively
-        val transactions = transactionsSource
-        android.util.Log.e("FINAL_PDF_DATA", "Transactions for PDF generation after mapping: ${transactions.size}")
-
-        val totalIncome = transactions.filter { it.transactionType == Transaction.TYPE_INCOME }.sumOf { it.amount }
-        val totalExpenses = transactions.filter { it.transactionType == Transaction.TYPE_EXPENSE }.sumOf { it.amount }
-
-        val splits = transactions.filter { it.transactionType == Transaction.TYPE_EXPENSE }
+        val splits = transactionsSource.filter { it.transactionType == Transaction.TYPE_EXPENSE }
             .groupBy { it.category }
             .map { (cat, list) -> CategorySplit(cat, list.sumOf { it.amount }) }
             .sortedByDescending { it.amount }
 
         val heatmap = mutableListOf<Double>()
         val dayCal = Calendar.getInstance()
-        val spendByDay = transactions.filter { it.transactionType == Transaction.TYPE_EXPENSE }
+        val spendByDay = transactionsSource.filter { it.transactionType == Transaction.TYPE_EXPENSE }
             .groupBy { 
                 dayCal.timeInMillis = it.timestamp
                 dayCal.get(Calendar.DAY_OF_MONTH)
@@ -106,20 +102,13 @@ class ExpenseSensePdfExporter(private val context: Context) {
         val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
         val calClone = cal.clone() as Calendar
         calClone.set(Calendar.DAY_OF_MONTH, 1)
-        val startDayOfWeek = calClone.get(Calendar.DAY_OF_WEEK) - 1 // 0 = Sun
+        val startDayOfWeek = calClone.get(Calendar.DAY_OF_WEEK) - 1
         
-        for (i in 0 until startDayOfWeek) {
-            heatmap.add(-1.0)
-        }
-
-        for (day in 1..daysInMonth) {
-            heatmap.add(spendByDay[day] ?: 0.0)
-        }
+        for (i in 0 until startDayOfWeek) heatmap.add(-1.0)
+        for (day in 1..daysInMonth) heatmap.add(spendByDay[day] ?: 0.0)
 
         val spendingPoints = mutableListOf<Double>()
         val spendingLabels = mutableListOf<String>()
-        val tempCal = cal.clone() as Calendar
-
         for (day in 1..daysInMonth) {
             spendingPoints.add(spendByDay[day] ?: 0.0)
             val ordinal = when {
@@ -136,7 +125,7 @@ class ExpenseSensePdfExporter(private val context: Context) {
             month = SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(cal.time),
             totalIncome = totalIncome,
             totalExpenses = totalExpenses,
-            transactions = transactionsSource.sortedByDescending { it.timestamp }.map { // Correctly sorted single source
+            transactions = transactionsSource.sortedByDescending { it.timestamp }.map {
                 PTransaction(
                     date = SimpleDateFormat("dd MMM", Locale.getDefault()).format(Date(it.timestamp)),
                     merchantName = it.title,
@@ -151,65 +140,105 @@ class ExpenseSensePdfExporter(private val context: Context) {
             spendingLabels = spendingLabels
         )
 
-        val document = PdfDocument()
-        val pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, 1).create()
-        val page = document.startPage(pageInfo)
-        val canvas = page.canvas
+        // Multi-page logic initialization
+        document = PdfDocument()
+        pageNum = 0
+        currentY = M
+        
+        startNewPage(data)
+        
+        drawHeader(data)
+        currentY += 24f
 
-        canvas.drawColor(C_BG)
-        android.util.Log.d("PDF_DEBUG", "Total prepared for PDF: ${data.transactions.size}")
-        drawPage(canvas, data)
+        ensureSpace(60f, data)
+        drawSummaryCards(data)
+        currentY += 30f
 
-        document.finishPage(page)
-        val file = saveToDownloads(document, data.month)
-        document.close()
+        ensureSpace(170f, data)
+        drawLineChart(data)
+        currentY += 30f
+
+        ensureSpace(160f, data)
+        drawBreakdownRow(data)
+        currentY += 30f
+
+        ensureSpace(40f, data)
+        drawSection("Recent Transactions")
+        currentY += 20f
+        
+        drawTransactionTable(data)
+
+        finishCurrentPage()
+
+        val file = saveToDownloads(document!!, data.month)
+        document?.close()
+        
+        // Reset state for next export
+        document = null
+        currentPage = null
+        canvas = null
 
         return file
     }
 
-    private fun drawPage(canvas: Canvas, data: AnalyticsData) {
-        var y = M
+    private fun startNewPage(data: AnalyticsData) {
+        pageNum++
+        val pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNum).create()
+        currentPage = document?.startPage(pageInfo)
+        canvas = currentPage?.canvas
+        canvas?.drawColor(C_BG)
+        currentY = M
 
-        y = drawHeader(canvas, y, data)
-        y += 24f
-
-        y = drawSummaryCards(canvas, y, data)
-        y += 30f
-
-        y = drawLineChart(canvas, y, data)
-        y += 30f
-
-        y = drawBreakdownRow(canvas, y, data)
-        y += 30f
-
-        drawSection(canvas, y, "Recent Transactions")
-        y += 20f
-        drawTransactionTable(canvas, y, data.transactions)
-
-        drawFooter(canvas)
+        if (pageNum > 1) {
+            drawSimplifiedHeader(data)
+            currentY += 20f
+        }
     }
 
-    private fun drawHeader(canvas: Canvas, y: Float, data: AnalyticsData): Float {
+    private fun finishCurrentPage() {
+        canvas?.let { drawFooter(it) }
+        currentPage?.let { document?.finishPage(it) }
+    }
+
+    private fun ensureSpace(height: Float, data: AnalyticsData) {
+        if (currentY + height > PAGE_HEIGHT - 80f) {
+            finishCurrentPage()
+            startNewPage(data)
+        }
+    }
+
+    private fun drawSimplifiedHeader(data: AnalyticsData) {
+        val c = canvas ?: return
+        c.drawText("ExpenseSense Analytics Report — ${data.month}", M, currentY + 10, paint(C_TEXT2, 9f, true))
+        c.drawLine(M, currentY + 15, PAGE_WIDTH - M, currentY + 15, paint(C_DIVIDER, 1f))
+        currentY += 15
+    }
+
+    private fun drawHeader(data: AnalyticsData) {
+        val c = canvas ?: return
+        val y = currentY
         val h = 60f
-        drawRoundRectCard(canvas, M, y, CW, h)
+        drawRoundRectCard(c, M, y, CW, h)
 
         val logoBox = 34f
         val paintLogo = Paint().apply { color = C_BRAND }
-        canvas.drawRoundRect(M + 12, y + 13, M + 12 + logoBox, y + 13 + logoBox, 8f, 8f, paintLogo)
-        canvas.drawText("ES", M + 21, y + 36, paint(Color.WHITE, 14f, true))
+        c.drawRoundRect(M + 12, y + 13, M + 12 + logoBox, y + 13 + logoBox, 8f, 8f, paintLogo)
+        c.drawText("ES", M + 21, y + 36, paint(Color.WHITE, 14f, true))
 
-        canvas.drawText("ExpenseSense", M + 60, y + 30, paint(C_TEXT1, 15f, true))
-        canvas.drawText("Personal Finance Tracker", M + 60, y + 46, paint(C_TEXT2, 10f))
+        c.drawText("ExpenseSense", M + 60, y + 30, paint(C_TEXT1, 15f, true))
+        c.drawText("Personal Finance Tracker", M + 60, y + 46, paint(C_TEXT2, 10f))
 
-        canvas.drawText("ANALYTICS REPORT", PAGE_WIDTH - M - 12, y + 26, paint(C_TEXT2, 9f, true, Paint.Align.RIGHT))
-        canvas.drawText(data.month, PAGE_WIDTH - M - 12, y + 42, paint(C_TEXT1, 12f, true, Paint.Align.RIGHT))
+        c.drawText("ANALYTICS REPORT", PAGE_WIDTH - M - 12, y + 26, paint(C_TEXT2, 9f, true, Paint.Align.RIGHT))
+        c.drawText(data.month, PAGE_WIDTH - M - 12, y + 42, paint(C_TEXT1, 12f, true, Paint.Align.RIGHT))
         val today = SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(Date())
-        canvas.drawText("Generated: $today", PAGE_WIDTH - M - 12, y + 54, paint(C_TEXT2, 8f, align = Paint.Align.RIGHT))
+        c.drawText("Generated: $today", PAGE_WIDTH - M - 12, y + 54, paint(C_TEXT2, 8f, align = Paint.Align.RIGHT))
 
-        return y + h
+        currentY += h
     }
 
-    private fun drawSummaryCards(canvas: Canvas, y: Float, data: AnalyticsData): Float {
+    private fun drawSummaryCards(data: AnalyticsData) {
+        val c = canvas ?: return
+        val y = currentY
         val cardW = (CW - 24) / 3
         val cardH = 50f
 
@@ -221,23 +250,25 @@ class ExpenseSensePdfExporter(private val context: Context) {
 
         cards.forEachIndexed { i, (label, amount, color) ->
             val x = M + i * (cardW + 12)
-            drawRoundRectCard(canvas, x, y, cardW, cardH)
+            drawRoundRectCard(c, x, y, cardW, cardH)
             
             val stripP = Paint().apply { this.color = color }
-            canvas.drawRoundRect(x, y, x + 4, y + cardH, 4f, 4f, stripP)
+            c.drawRoundRect(x, y, x + 4, y + cardH, 4f, 4f, stripP)
 
-            canvas.drawText(label, x + 12, y + 18, paint(C_TEXT2, 8f, true))
-            canvas.drawText("₹${formatAmount(amount)}", x + 12, y + 38, paint(C_TEXT1, 14f, true))
+            c.drawText(label, x + 12, y + 18, paint(C_TEXT2, 8f, true))
+            c.drawText("₹${formatAmount(amount)}", x + 12, y + 38, paint(C_TEXT1, 14f, true))
         }
 
-        return y + cardH
+        currentY += cardH
     }
 
-    private fun drawLineChart(canvas: Canvas, y: Float, data: AnalyticsData): Float {
+    private fun drawLineChart(data: AnalyticsData) {
+        val c = canvas ?: return
+        val y = currentY
         val h = 160f
-        drawRoundRectCard(canvas, M, y, CW, h)
+        drawRoundRectCard(c, M, y, CW, h)
         
-        canvas.drawText("SPENDING OVER TIME", M + 16, y + 24, paint(C_TEXT1, 10f, true))
+        c.drawText("SPENDING OVER TIME", M + 16, y + 24, paint(C_TEXT1, 10f, true))
 
         val chartM = 40f
         val chartW = CW - chartM * 2
@@ -245,7 +276,6 @@ class ExpenseSensePdfExporter(private val context: Context) {
         val startX = M + chartM
         val startY = y + 40f + chartH
 
-        android.util.Log.d("PDF_DEBUG", "LineChart input size (spendingPoints): ${data.spendingPoints.size}")
         if (data.spendingPoints.size >= 2) {
             val rawMax = data.spendingPoints.maxOrNull()?.coerceAtLeast(100.0) ?: 100.0
             val max = Math.ceil(rawMax / 100.0) * 100.0
@@ -254,16 +284,16 @@ class ExpenseSensePdfExporter(private val context: Context) {
             val yGridPaint = paint(C_DIVIDER, 1f)
             val yLabelPaint = paint(C_TEXT2, 8f, align = Paint.Align.RIGHT)
 
-            canvas.drawText("0", startX - 8f, startY + 3f, yLabelPaint)
-            canvas.drawLine(startX, startY, startX + chartW, startY, yGridPaint)
+            c.drawText("0", startX - 8f, startY + 3f, yLabelPaint)
+            c.drawLine(startX, startY, startX + chartW, startY, yGridPaint)
 
             val midY = startY - (chartH / 2)
-            canvas.drawText(formatAmount(mid), startX - 8f, midY + 3f, yLabelPaint)
-            canvas.drawLine(startX, midY, startX + chartW, midY, yGridPaint)
+            c.drawText(formatAmount(mid), startX - 8f, midY + 3f, yLabelPaint)
+            c.drawLine(startX, midY, startX + chartW, midY, yGridPaint)
 
             val maxY = startY - chartH
-            canvas.drawText(formatAmount(max), startX - 8f, maxY + 3f, yLabelPaint)
-            canvas.drawLine(startX, maxY, startX + chartW, maxY, yGridPaint)
+            c.drawText(formatAmount(max), startX - 8f, maxY + 3f, yLabelPaint)
+            c.drawLine(startX, maxY, startX + chartW, maxY, yGridPaint)
 
             val paintPath = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = C_BRAND
@@ -280,33 +310,35 @@ class ExpenseSensePdfExporter(private val context: Context) {
                 val py = startY - (pt.toFloat() / max.toFloat() * chartH)
                 if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
                 
-                canvas.drawCircle(px, py, 2.5f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = C_BRAND })
+                c.drawCircle(px, py, 2.5f, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = C_BRAND })
                 
                 if (pt > 0) {
-                    canvas.drawText("₹${formatAmount(pt)}", px, py - 6f, paint(C_BRAND, 6.5f, true, Paint.Align.CENTER))
+                    c.drawText("₹${formatAmount(pt)}", px, py - 6f, paint(C_BRAND, 6.5f, true, Paint.Align.CENTER))
                 }
 
                 if ((i + 1) % 2 == 0) {
                     if (i < data.spendingLabels.size) {
-                        canvas.drawText(data.spendingLabels[i], px, startY + 14, paint(C_TEXT2, 6.5f, align = Paint.Align.CENTER))
+                        c.drawText(data.spendingLabels[i], px, startY + 14, paint(C_TEXT2, 6.5f, align = Paint.Align.CENTER))
                     }
                 }
             }
-            canvas.drawPath(path, paintPath)
+            c.drawPath(path, paintPath)
         } else {
-            canvas.drawLine(startX, startY, startX + chartW, startY, paint(C_DIVIDER, 1f))
+            c.drawLine(startX, startY, startX + chartW, startY, paint(C_DIVIDER, 1f))
         }
 
-        return y + h
+        currentY += h
     }
 
-    private fun drawBreakdownRow(canvas: Canvas, y: Float, data: AnalyticsData): Float {
+    private fun drawBreakdownRow(data: AnalyticsData) {
+        val c = canvas ?: return
+        val y = currentY
         val cardW = (CW - 12) / 2
         val h = 150f
 
         // Card 1: Pie
-        drawRoundRectCard(canvas, M, y, cardW, h)
-        canvas.drawText("CATEGORY BREAKDOWN", M + 16, y + 24, paint(C_TEXT1, 10f, true))
+        drawRoundRectCard(c, M, y, cardW, h)
+        c.drawText("CATEGORY BREAKDOWN", M + 16, y + 24, paint(C_TEXT1, 10f, true))
 
         val centerX = M + 60f
         val centerY = y + 85f
@@ -316,11 +348,6 @@ class ExpenseSensePdfExporter(private val context: Context) {
         var startAngle = -90f
         val total = data.categorySplits.sumOf { it.amount }.coerceAtLeast(1.0)
         
-        android.util.Log.d("PDF_DEBUG", "PieChart input size (categorySplits): ${data.categorySplits.size}")
-        if (data.categorySplits.isEmpty()) {
-            android.util.Log.e("ERROR_DEBUG", "Pie Chart skipped: No category data available")
-        }
-        
         data.categorySplits.take(5).forEachIndexed { i, split ->
             val sweep = (split.amount / total * 360).toFloat()
             val p = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -328,21 +355,21 @@ class ExpenseSensePdfExporter(private val context: Context) {
                 strokeWidth = 14f
                 color = PIE_COLORS[i % PIE_COLORS.size]
             }
-            canvas.drawArc(rectF, startAngle, sweep, false, p)
+            c.drawArc(rectF, startAngle, sweep, false, p)
             
             val lx = centerX + radius + 15
             val ly = y + 45 + i * 18
-            canvas.drawCircle(lx, ly - 3, 4f, p.apply { style = Paint.Style.FILL })
-            canvas.drawText(ellipsize(split.name, 10), lx + 10, ly, paint(C_TEXT1, 9f))
-            canvas.drawText("${(split.amount/total*100).toInt()}%", M + cardW - 16, ly, paint(C_TEXT2, 9f, align = Paint.Align.RIGHT))
+            c.drawCircle(lx, ly - 3, 4f, p.apply { style = Paint.Style.FILL })
+            c.drawText(ellipsize(split.name, 10), lx + 10, ly, paint(C_TEXT1, 9f))
+            c.drawText("${(split.amount/total*100).toInt()}%", M + cardW - 16, ly, paint(C_TEXT2, 9f, align = Paint.Align.RIGHT))
             
             startAngle += sweep
         }
 
         // Card 2: Heatmap
         val x2 = M + cardW + 12
-        drawRoundRectCard(canvas, x2, y, cardW, h)
-        canvas.drawText("ACTIVITY MAP", x2 + 16, y + 24, paint(C_TEXT1, 10f, true))
+        drawRoundRectCard(c, x2, y, cardW, h)
+        c.drawText("ACTIVITY MAP", x2 + 16, y + 24, paint(C_TEXT1, 10f, true))
 
         val cellSize = 12f
         val gap = 4f
@@ -352,7 +379,7 @@ class ExpenseSensePdfExporter(private val context: Context) {
         val daysOfWeek = listOf("S", "M", "T", "W", "T", "F", "S")
         daysOfWeek.forEachIndexed { col, text ->
             val cx = hmStartX + col * (cellSize + gap) + (cellSize / 2)
-            canvas.drawText(text, cx, hmStartY - 8f, paint(C_TEXT2, 7f, align = Paint.Align.CENTER))
+            c.drawText(text, cx, hmStartY - 8f, paint(C_TEXT2, 7f, align = Paint.Align.CENTER))
         }
 
         var startOfWeekPadding = 0
@@ -363,8 +390,8 @@ class ExpenseSensePdfExporter(private val context: Context) {
         val rows = Math.ceil(data.heatmapValues.size / 7.0).toInt()
         for (row in 0 until rows) {
             var firstValidDayInRow = -1
-            for (c in 0..6) {
-                val idx = row * 7 + c
+            for (col in 0..6) {
+                val idx = row * 7 + col
                 if (idx < data.heatmapValues.size && data.heatmapValues[idx] != -1.0) {
                     firstValidDayInRow = idx - startOfWeekPadding + 1
                     break
@@ -372,7 +399,7 @@ class ExpenseSensePdfExporter(private val context: Context) {
             }
             if (firstValidDayInRow != -1) {
                 val ry = hmStartY + row * (cellSize + gap)
-                canvas.drawText(firstValidDayInRow.toString(), hmStartX - 6f, ry + 9f, paint(C_TEXT2, 7f, align = Paint.Align.RIGHT))
+                c.drawText(firstValidDayInRow.toString(), hmStartX - 6f, ry + 9f, paint(C_TEXT2, 7f, align = Paint.Align.RIGHT))
             }
         }
 
@@ -393,61 +420,59 @@ class ExpenseSensePdfExporter(private val context: Context) {
                     color = C_BRAND
                     alpha = (opacity * 255).toInt()
                 }
-                canvas.drawRoundRect(rx, ry, rx + cellSize, ry + cellSize, 3f, 3f, p)
+                c.drawRoundRect(rx, ry, rx + cellSize, ry + cellSize, 3f, 3f, p)
             }
         }
-        
-        android.util.Log.d("PDF_DEBUG", "Heatmap input size (heatmapValues): ${data.heatmapValues.size}")
-        if (data.heatmapValues.all { it <= 0.0 }) {
-             android.util.Log.e("ERROR_DEBUG", "Heatmap might appear empty: all values are 0.0")
-        }
 
-        return y + h
+        currentY += h
     }
 
-    private fun drawSection(canvas: Canvas, y: Float, title: String) {
-        canvas.drawText(title.uppercase(), M, y, paint(C_TEXT2, 10f, true))
+    private fun drawSection(title: String) {
+        canvas?.drawText(title.uppercase(), M, currentY, paint(C_TEXT2, 10f, true))
     }
 
-    private fun drawTransactionTable(canvas: Canvas, y: Float, list: List<PTransaction>) {
+    private fun drawTransactionTable(data: AnalyticsData) {
         val colDate = M + 12
         val colMerchant = M + 70
         val colCat = M + 180
         val colAccount = M + 280
         val colAmt = PAGE_WIDTH - M - 12
 
-        canvas.drawText("DATE", colDate, y, paint(C_TEXT2, 8f, true))
-        canvas.drawText("MERCHANT", colMerchant, y, paint(C_TEXT2, 8f, true))
-        canvas.drawText("CATEGORY", colCat, y, paint(C_TEXT2, 8f, true))
-        canvas.drawText("ACCOUNT", colAccount, y, paint(C_TEXT2, 8f, true))
-        canvas.drawText("AMOUNT", colAmt, y, paint(C_TEXT2, 8f, true, Paint.Align.RIGHT))
+        // Header
+        ensureSpace(20f, data)
+        canvas?.drawText("DATE", colDate, currentY, paint(C_TEXT2, 8f, true))
+        canvas?.drawText("MERCHANT", colMerchant, currentY, paint(C_TEXT2, 8f, true))
+        canvas?.drawText("CATEGORY", colCat, currentY, paint(C_TEXT2, 8f, true))
+        canvas?.drawText("ACCOUNT", colAccount, currentY, paint(C_TEXT2, 8f, true))
+        canvas?.drawText("AMOUNT", colAmt, currentY, paint(C_TEXT2, 8f, true, Paint.Align.RIGHT))
+        currentY += 15f
 
-        val sorted = list.take(20) // Already prepared and mapped, using take(20) for table space
-        var currentY = y + 15
-        sorted.forEach { tx ->
-            canvas.drawLine(M, currentY, PAGE_WIDTH - M, currentY, paint(C_DIVIDER, 0.5f))
+        data.transactions.forEach { tx ->
+            ensureSpace(25f, data)
+            val c = canvas ?: return@forEach
+            c.drawLine(M, currentY, PAGE_WIDTH - M, currentY, paint(C_DIVIDER, 0.5f))
             currentY += 24
             val midY = currentY - 8
             
-            canvas.drawText(tx.date, colDate, midY, paint(C_TEXT2, 9f))
-            canvas.drawText(ellipsize(tx.merchantName, 18), colMerchant, midY, paint(C_TEXT1, 10f, true))
-            canvas.drawText(tx.category, colCat, midY, paint(C_TEXT2, 9f))
-            canvas.drawText(tx.accountName, colAccount, midY, paint(C_TEXT2, 9f))
+            c.drawText(tx.date, colDate, midY, paint(C_TEXT2, 9f))
+            c.drawText(ellipsize(tx.merchantName, 18), colMerchant, midY, paint(C_TEXT1, 10f, true))
+            c.drawText(tx.category, colCat, midY, paint(C_TEXT2, 9f))
+            c.drawText(tx.accountName, colAccount, midY, paint(C_TEXT2, 9f))
             
             val isNeg = tx.amount < 0
             val color = if (isNeg) C_EXPENSE else C_INCOME
             val prefix = if (isNeg) "-" else "+"
-            canvas.drawText("$prefix₹${formatAmount(abs(tx.amount))}", colAmt, midY, paint(color, 11f, true, Paint.Align.RIGHT))
+            c.drawText("$prefix₹${formatAmount(abs(tx.amount))}", colAmt, midY, paint(color, 11f, true, Paint.Align.RIGHT))
         }
     }
 
-    private fun drawFooter(canvas: Canvas) {
+    private fun drawFooter(c: Canvas) {
         val y = PAGE_HEIGHT - 40f
-        canvas.drawLine(M, y, PAGE_WIDTH - M, y, paint(C_DIVIDER, 1f))
-        canvas.drawText("ExpenseSense • expensesense.app • All data is private & encrypted", M, y + 20, paint(C_TEXT2, 8f))
-        canvas.drawText("Page 1 of 1", PAGE_WIDTH - M, y + 20, paint(C_TEXT2, 8f, align = Paint.Align.RIGHT))
+        c.drawLine(M, y, PAGE_WIDTH - M, y, paint(C_DIVIDER, 1f))
+        c.drawText("ExpenseSense • Downloaded Report • All data is private & encrypted", M, y + 20, paint(C_TEXT2, 8f))
+        c.drawText("Page $pageNum", PAGE_WIDTH - M, y + 20, paint(C_TEXT2, 8f, align = Paint.Align.RIGHT))
         val p = Paint().apply { color = C_BRAND }
-        canvas.drawRect(M, (PAGE_HEIGHT - 6).toFloat(), PAGE_WIDTH - M,
+        c.drawRect(M, (PAGE_HEIGHT - 6).toFloat(), PAGE_WIDTH - M,
             (PAGE_HEIGHT - 4).toFloat(), p)
     }
 

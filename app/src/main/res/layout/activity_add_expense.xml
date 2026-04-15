@@ -7,100 +7,15 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="#FFFFFF"
+    android:animateLayoutChanges="true"
     tools:context=".AddExpenseActivity">
 
-    <!-- 1.  HEADER IMAGE -->
-    <ImageView
-        android:id="@+id/imgHeader"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignParentTop="true"
-        android:adjustViewBounds="true"
-        android:contentDescription="Header background"
-        android:scaleType="fitXY"
-        android:src="@drawable/activityheaderbg" />
-
-    <!--HEADER CONTROLS-->
-    <RelativeLayout
-        android:id="@+id/headerControls"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_alignTop="@id/imgHeader"
-        android:layout_alignBottom="@id/imgHeader">
-
-        <!-- Back arrow -->
-        <ImageButton
-            android:id="@+id/btnBack"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_alignParentStart="true"
-            android:layout_marginStart="8dp"
-            android:layout_marginTop="48dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Back"
-            android:src="@drawable/ic_back_arrow"
-            app:tint="#FFFFFF" />
-
-        <!-- Title -->
-        <TextView
-            android:id="@+id/tvTitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerHorizontal="true"
-            android:layout_marginTop="56dp"
-            android:text="Add Expense"
-            android:textColor="#FFFFFF"
-            android:textSize="22sp"
-            android:textStyle="bold|italic"
-            android:letterSpacing="0.02" />
-
-        <!-- Three-dot menu -->
-        <ImageButton
-            android:id="@+id/btnMenu"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_alignParentEnd="true"
-            android:layout_marginTop="48dp"
-            android:layout_marginEnd="8dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="More options"
-            android:src="@drawable/ic_dots_menu"
-            app:tint="#FFFFFF" />
-
-    </RelativeLayout>
-
-    <!--3.  ADD EXPENSE BUTTON -->
-    <com.google.android.material.button.MaterialButton
-        android:id="@+id/btnAddExpense"
-        android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:layout_alignParentBottom="true"
-        android:layout_marginStart="20dp"
-        android:layout_marginEnd="20dp"
-        android:layout_marginBottom="28dp"
-        android:elevation="12dp"
-        android:outlineAmbientShadowColor="@color/color_teal_primary"
-        android:outlineSpotShadowColor="@color/color_teal_primary"
-        android:text="Add Expense"
-        android:textAllCaps="false"
-        android:textColor="#FFFFFF"
-        android:textSize="18sp"
-        android:textStyle="bold"
-        android:translationZ="4dp"
-        app:backgroundTint="@color/color_teal_primary"
-        app:cornerRadius="30dp"
-        app:elevation="8dp"
-        tools:targetApi="p"
-        xmlns:tools="http://schemas.android.com/tools" />
-
-    <!--  4.  SCROLLABLE FORM -->
-    <ScrollView
+    <!-- 4. SCROLLABLE CONTENT (Includes Header) -->
+    <!-- Scrollable Form (Includes Header) -->
+    <androidx.core.widget.NestedScrollView
         android:id="@+id/scrollContent"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:layout_above="@id/btnAddExpense"
-        android:layout_below="@id/imgHeader"
-        android:layout_marginTop="-120dp"
         android:clipToPadding="false"
         android:fillViewport="true"
         android:overScrollMode="never">
@@ -111,14 +26,75 @@
             android:orientation="vertical"
             android:paddingBottom="16dp">
 
+            <!-- ── HEADER SECTION (Inside Scroll) ─────────────────────── -->
+            <RelativeLayout
+                android:id="@+id/layoutHeaderContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <ImageView
+                    android:id="@+id/imgHeader"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:adjustViewBounds="true"
+                    android:contentDescription="Header background"
+                    android:scaleType="fitXY"
+                    android:src="@drawable/activityheaderbg" />
+
+                <!-- HEADER CONTROLS -->
+                <RelativeLayout
+                    android:id="@+id/headerControls"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_alignTop="@id/imgHeader"
+                    android:layout_alignBottom="@id/imgHeader">
+
+                    <ImageButton
+                        android:id="@+id/btnBack"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_alignParentStart="true"
+                        android:layout_marginStart="8dp"
+                        android:layout_marginTop="48dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="Back"
+                        android:src="@drawable/ic_back_arrow"
+                        app:tint="#FFFFFF" />
+
+                    <TextView
+                        android:id="@+id/tvTitle"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_centerHorizontal="true"
+                        android:layout_marginTop="56dp"
+                        android:text="Add Expense"
+                        android:textColor="#FFFFFF"
+                        android:textSize="22sp"
+                        android:textStyle="bold|italic"
+                        android:letterSpacing="0.02" />
+
+                    <ImageButton
+                        android:id="@+id/btnMenu"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
+                        android:layout_alignParentEnd="true"
+                        android:layout_marginTop="48dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:contentDescription="More options"
+                        android:src="@drawable/ic_dots_menu"
+                        app:tint="#FFFFFF" />
+                </RelativeLayout>
+            </RelativeLayout>
+
             <!-- ── PARENT FORM CARD ─────────────────────────────────── -->
-            
             <androidx.cardview.widget.CardView
                 android:id="@+id/cardForm"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="16dp"
                 android:layout_marginEnd="16dp"
+                android:layout_marginTop="-120dp"
                 app:cardBackgroundColor="#FFFFFF"
                 app:cardCornerRadius="20dp"
                 app:cardElevation="10dp"
@@ -151,8 +127,9 @@
                             android:layout_weight="1"
                             android:text="Expense"
                             android:textAllCaps="false"
-                            android:textColor="@color/black"
-                            app:strokeColor="#EEEEEE"
+                            android:textColor="@color/toggle_text_selector"
+                            app:strokeColor="@color/toggle_stroke_selector"
+                            app:strokeWidth="1.5dp"
                             app:rippleColor="#FDECEC"
                             app:backgroundTint="@color/white" />
 
@@ -164,8 +141,9 @@
                             android:layout_weight="1"
                             android:text="Income"
                             android:textAllCaps="false"
-                            android:textColor="@color/black"
-                            app:strokeColor="#EEEEEE"
+                            android:textColor="@color/toggle_text_selector"
+                            app:strokeColor="@color/toggle_stroke_selector"
+                            app:strokeWidth="1.5dp"
                             app:rippleColor="#ECFDFD"
                             app:backgroundTint="@color/white" />
 
@@ -416,8 +394,10 @@
                             android:layout_height="wrap_content"
                             android:text="Cash"
                             android:checked="true"
+                            android:textColor="@color/text_chip_state_list"
                             app:chipBackgroundColor="@color/bg_chip_state_list"
-                            app:chipStrokeWidth="0dp"
+                            app:chipStrokeColor="@color/stroke_chip_state_list"
+                            app:chipStrokeWidth="1dp"
                             app:rippleColor="#2ABFBF" />
 
                         <com.google.android.material.chip.Chip
@@ -426,8 +406,10 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="UPI"
+                            android:textColor="@color/text_chip_state_list"
                             app:chipBackgroundColor="@color/bg_chip_state_list"
-                            app:chipStrokeWidth="0dp"
+                            app:chipStrokeColor="@color/stroke_chip_state_list"
+                            app:chipStrokeWidth="1dp"
                             app:rippleColor="#2ABFBF" />
 
                         <com.google.android.material.chip.Chip
@@ -436,8 +418,10 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Debit Card"
+                            android:textColor="@color/text_chip_state_list"
                             app:chipBackgroundColor="@color/bg_chip_state_list"
-                            app:chipStrokeWidth="0dp"
+                            app:chipStrokeColor="@color/stroke_chip_state_list"
+                            app:chipStrokeWidth="1dp"
                             app:rippleColor="#2ABFBF" />
 
                         <com.google.android.material.chip.Chip
@@ -446,8 +430,10 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="Credit Card"
+                            android:textColor="@color/text_chip_state_list"
                             app:chipBackgroundColor="@color/bg_chip_state_list"
-                            app:chipStrokeWidth="0dp"
+                            app:chipStrokeColor="@color/stroke_chip_state_list"
+                            app:chipStrokeWidth="1dp"
                             app:rippleColor="#2ABFBF" />
                     </com.google.android.material.chip.ChipGroup>
                     <!-- └─────────────────────────────────────────────┘ -->
@@ -510,11 +496,28 @@
                         android:textSize="15sp" />
                     <!-- └─────────────────────────────────────────────┘ -->
 
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnAddExpense"
+                        android:layout_width="match_parent"
+                        android:layout_height="60dp"
+                        android:layout_marginTop="32dp"
+                        android:layout_marginBottom="8dp"
+                        android:elevation="8dp"
+                        android:text="Add Expense"
+                        android:textAllCaps="false"
+                        android:textColor="#FFFFFF"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        app:backgroundTint="@color/color_teal_primary"
+                        app:cornerRadius="30dp"
+                        app:elevation="8dp"
+                        tools:targetApi="p" />
+
                 </LinearLayout>
             </androidx.cardview.widget.CardView>
             <!-- ── END FORM CARD ──────────────────────────────────────── -->
 
         </LinearLayout>
-    </ScrollView>
+    </androidx.core.widget.NestedScrollView>
 
 </RelativeLayout>

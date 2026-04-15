@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
 
-@Database(entities = [Transaction::class, Budget::class, Account::class, UserProfile::class, Card::class, DebitCard::class, CreditCard::class], version = 15, exportSchema = false)
+@Database(entities = [Transaction::class, Budget::class, Account::class, UserProfile::class, Card::class, DebitCard::class, CreditCard::class], version = 16, exportSchema = false)
+@TypeConverters(BudgetConverters::class)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun transactionDao(): TransactionDao

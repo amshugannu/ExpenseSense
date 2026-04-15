@@ -6,9 +6,9 @@ import kotlinx.coroutines.withContext
 
 class TransactionRepository(private val transactionDao: TransactionDao) {
 
-    suspend fun getTopSpending(startTime: Long, endTime: Long, limit: Int = 5): List<Transaction> =
+    suspend fun getTopSpending(startTime: Long, endTime: Long, type: String, limit: Int = 5): List<Transaction> =
         withContext(Dispatchers.IO) {
-            transactionDao.getTopSpending(startTime, endTime, limit)
+            transactionDao.getTopSpending(startTime, endTime, type, limit)
         }
 
     suspend fun getTransactionsInRange(startTime: Long, endTime: Long): List<Transaction> =

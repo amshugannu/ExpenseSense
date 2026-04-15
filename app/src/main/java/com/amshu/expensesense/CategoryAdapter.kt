@@ -44,7 +44,7 @@ class CategoryAdapter(
                 "games" -> R.drawable.cat_games
                 "movies" -> R.drawable.cat_movie
                 "sports" -> R.drawable.cat_sports
-                "dinner" -> R.drawable.cat_dinner
+                "food", "dinner" -> R.drawable.cat_dinner
                 "groceries" -> R.drawable.cat_groceries
                 "drinks" -> R.drawable.cat_drinks
                 "household supplies" -> R.drawable.cat_household_supplies
