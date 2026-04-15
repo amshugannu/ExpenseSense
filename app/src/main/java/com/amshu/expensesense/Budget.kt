@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class Budget(
     @PrimaryKey val monthYear: String = "", 
     val totalBudget: Double = 0.0,
-    val remainingBudget: Double = 0.0
+    val remainingBudget: Double = 0.0,
+    val categoryBudgets: Map<String, Double> = emptyMap()
 )

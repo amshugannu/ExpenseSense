@@ -18,6 +18,7 @@ import com.amshu.expensesense.databinding.FragmentAnalyticsBinding
 import com.google.android.material.snackbar.Snackbar
 import com.github.mikephil.charting.data.*
 import com.github.mikephil.charting.components.XAxis
+import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -28,6 +29,7 @@ class AnalyticsFragment : Fragment() {
 
     private lateinit var viewModel: AnalyticsViewModel
     private var currentTimeRange = "Month"
+    private var selectedType = Transaction.TYPE_EXPENSE
 
     private lateinit var topSpendingAdapter: TopSpendingAdapter
 
@@ -43,21 +45,23 @@ class AnalyticsFragment : Fragment() {
         observeData()
         
         // Initial fetch for current month
-        viewModel.fetchMonthlyData()
+        viewModel.fetchMonthlyData(selectedType)
     }
 
     private fun setupViewModel() {
         val database = AppDatabase.getDatabase(requireContext())
-        val repository = TransactionRepository(database.transactionDao())
-        val application = requireActivity().application
-
-        val factory = object : ViewModelProvider.Factory {
+        val transactionRepository = TransactionRepository(database.transactionDao())
+        
+        val analyticsFactory = object : ViewModelProvider.Factory {
             override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                return AnalyticsViewModel(application, repository) as T
+                if (modelClass.isAssignableFrom(AnalyticsViewModel::class.java)) {
+                    val application = requireActivity().application
+                    return AnalyticsViewModel(application, transactionRepository) as T
+                }
+                throw IllegalArgumentException("Unknown ViewModel class")
             }
         }
-
-        viewModel = ViewModelProvider(this, factory)[AnalyticsViewModel::class.java]
+        viewModel = ViewModelProvider(this, analyticsFactory)[AnalyticsViewModel::class.java]
     }
 
     private fun setupMonthSpinner() {
@@ -76,7 +80,7 @@ class AnalyticsFragment : Fragment() {
         binding.spinnerGlobalMonth.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 viewModel.selectedMonthCalendar.set(Calendar.MONTH, position)
-                viewModel.fetchMonthlyData()
+                viewModel.fetchMonthlyData(selectedType)
             }
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
@@ -101,6 +105,70 @@ class AnalyticsFragment : Fragment() {
         binding.btnBack.setOnClickListener {
             requireActivity().onBackPressed()
         }
+
+        setupTabListeners()
+        setupTypeSpinner()
+    }
+
+    private fun setupTabListeners() {
+        val tabs = mapOf(
+            "Day" to binding.tabDay,
+            "Week" to binding.tabWeek,
+            "Month" to binding.tabMonth,
+            "Year" to binding.tabYear
+        )
+
+        tabs.forEach { (range, view) ->
+            view.setOnClickListener {
+                if (currentTimeRange == range) return@setOnClickListener
+                
+                // --- Tab Selection Logic ---
+                // 1. Update the local state
+                currentTimeRange = range
+                // 2. Refresh the UI styling of the tabs
+                updateTabUI(view)
+                // 3. Trigger a data refresh from the ViewModel
+                refreshData()
+            }
+        }
+    }
+
+    private fun setupTypeSpinner() {
+        val types = arrayOf("Expense", "Income")
+        val adapter = ArrayAdapter(requireContext(), android.R.layout.simple_spinner_item, types)
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.spinnerType.adapter = adapter
+
+        binding.spinnerType.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
+                val newType = if (position == 0) Transaction.TYPE_EXPENSE else Transaction.TYPE_INCOME
+                if (selectedType != newType) {
+                    selectedType = newType
+                    binding.tvTopSpendingTitle.text = if (selectedType == Transaction.TYPE_INCOME) "Top Income" else "Top Spending"
+                    refreshData()
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+    }
+
+    private fun updateTabUI(selectedTab: TextView) {
+        val tabs = listOf(binding.tabDay, binding.tabWeek, binding.tabMonth, binding.tabYear)
+        tabs.forEach { tab ->
+            if (tab == selectedTab) {
+                tab.setBackgroundResource(R.drawable.toggle_selector_active)
+                tab.setTextColor(Color.WHITE)
+                tab.setTypeface(null, android.graphics.Typeface.BOLD)
+            } else {
+                tab.setBackgroundResource(0)
+                tab.setTextColor(Color.parseColor("#999999"))
+                tab.setTypeface(null, android.graphics.Typeface.NORMAL)
+            }
+        }
+    }
+
+    private fun refreshData() {
+        viewModel.fetchData(currentTimeRange, viewModel.selectedMonthCalendar, selectedType)
     }
 
     private fun observeData() {
@@ -130,6 +198,7 @@ class AnalyticsFragment : Fragment() {
         }
     }
 
+
     private fun showExportSuccess(file: java.io.File) {
         Snackbar.make(binding.root, "PDF saved to Downloads", Snackbar.LENGTH_LONG)
             .setAction("Open") {
@@ -148,51 +217,100 @@ class AnalyticsFragment : Fragment() {
     }
 
     private fun updateCharts(transactions: List<Transaction>) {
-        val expenses = transactions.filter { it.transactionType == Transaction.TYPE_EXPENSE }
+        val filtered = transactions.filter { it.transactionType == selectedType }
         
-        updateLineChart(expenses)
-        updatePieChart(expenses)
-        updateHeatmap(expenses)
+        updateLineChart(filtered)
+        updatePieChart(filtered)
+        
+        if (currentTimeRange == "Month") {
+            binding.tvHeatmapTitle.visibility = View.VISIBLE
+            binding.heatmapGrid.visibility = View.VISIBLE
+            updateHeatmap(filtered)
+        } else {
+            binding.tvHeatmapTitle.visibility = View.GONE
+            binding.heatmapGrid.visibility = View.GONE
+        }
         
         if (transactions.isEmpty()) {
-            Toast.makeText(requireContext(), "No data for selected month", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), "No data for selected range", Toast.LENGTH_SHORT).show()
         }
     }
 
+    // --- Dynamic Chart Granularity Logic ---
+    // This function handles how the horizontal axis (X-axis) changes based on the selected tab.
     private fun updateLineChart(transactions: List<Transaction>) {
-        val cal = viewModel.selectedMonthCalendar
-        val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-        val currentCal = Calendar.getInstance()
-        
-        val isCurrentMonth = cal.get(Calendar.YEAR) == currentCal.get(Calendar.YEAR) &&
-                           cal.get(Calendar.MONTH) == currentCal.get(Calendar.MONTH)
-        
-        val maxDay = if (isCurrentMonth) currentCal.get(Calendar.DAY_OF_MONTH) else daysInMonth
-        
-        val dailySpending = mutableMapOf<Int, Double>()
-        transactions.forEach {
-            val tCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
-            val day = tCal.get(Calendar.DAY_OF_MONTH)
-            dailySpending[day] = (dailySpending[day] ?: 0.0) + it.amount
-        }
-
         val entries = mutableListOf<Entry>()
-        for (i in 1..maxDay) {
-            entries.add(Entry(i.toFloat(), dailySpending[i]?.toFloat() ?: 0f))
+        val labels = mutableListOf<String>()
+
+        when (currentTimeRange) {
+            "Day" -> {
+                // If 'Day' is selected, we group data by 24 individual hours.
+                val hourlySpending = mutableMapOf<Int, Double>()
+                transactions.forEach {
+                    val tCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+                    val hour = tCal.get(Calendar.HOUR_OF_DAY)
+                    hourlySpending[hour] = (hourlySpending[hour] ?: 0.0) + it.amount
+                }
+                for (i in 0..23) {
+                    entries.add(Entry(i.toFloat(), hourlySpending[i]?.toFloat() ?: 0f))
+                    labels.add("%02d:00".format(i))
+                }
+            }
+            "Week" -> {
+                val weeklySpending = mutableMapOf<Int, Double>()
+                transactions.forEach {
+                    val tCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+                    val dayOfWeek = tCal.get(Calendar.DAY_OF_WEEK) // 1=Sun, 2=Mon...
+                    weeklySpending[dayOfWeek] = (weeklySpending[dayOfWeek] ?: 0.0) + it.amount
+                }
+                val weekLabels = arrayOf("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat")
+                for (i in 1..7) {
+                    entries.add(Entry((i - 1).toFloat(), weeklySpending[i]?.toFloat() ?: 0f))
+                    labels.add(weekLabels[i - 1])
+                }
+            }
+            "Month" -> {
+                val cal = viewModel.selectedMonthCalendar
+                val maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+                val dailySpending = mutableMapOf<Int, Double>()
+                transactions.forEach {
+                    val tCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+                    val day = tCal.get(Calendar.DAY_OF_MONTH)
+                    dailySpending[day] = (dailySpending[day] ?: 0.0) + it.amount
+                }
+                for (i in 1..maxDay) {
+                    entries.add(Entry(i.toFloat(), dailySpending[i]?.toFloat() ?: 0f))
+                    labels.add("Day $i")
+                }
+            }
+            "Year" -> {
+                // If 'Year' is selected, we group data into 12 months (Jan..Dec).
+                val monthlySpending = mutableMapOf<Int, Double>()
+                transactions.forEach {
+                    val tCal = Calendar.getInstance().apply { timeInMillis = it.timestamp }
+                    val month = tCal.get(Calendar.MONTH)
+                    monthlySpending[month] = (monthlySpending[month] ?: 0.0) + it.amount
+                }
+                val monthLabels = arrayOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+                for (i in 0..11) {
+                    entries.add(Entry(i.toFloat(), monthlySpending[i]?.toFloat() ?: 0f))
+                    labels.add(monthLabels[i])
+                }
+            }
         }
 
-        val dataSet = LineDataSet(entries, "Daily Spending")
-        dataSet.color = Color.parseColor("#5B4CF5")
-        dataSet.setCircleColor(Color.parseColor("#5B4CF5"))
+        val dataSet = LineDataSet(entries, "${currentTimeRange} Spending")
+        val themeColor = if (selectedType == Transaction.TYPE_INCOME) "#43A047" else "#5B4CF5"
+        dataSet.color = Color.parseColor(themeColor)
+        dataSet.setCircleColor(Color.parseColor(themeColor))
         dataSet.lineWidth = 2f
         dataSet.circleRadius = 3f
         dataSet.setDrawCircleHole(false)
         dataSet.valueTextSize = 0f
         dataSet.setDrawFilled(true)
-        dataSet.fillColor = Color.parseColor("#5B4CF5")
+        dataSet.fillColor = Color.parseColor(themeColor)
         dataSet.fillAlpha = 50
 
-        val labels = (0..maxDay + 1).map { "Day $it" }
         val markerView = CustomMarkerView(requireContext(), R.layout.layout_chart_marker, labels)
 
         binding.lineChart.apply {
@@ -202,6 +320,8 @@ class AnalyticsFragment : Fragment() {
             xAxis.position = XAxis.XAxisPosition.BOTTOM
             xAxis.setDrawGridLines(false)
             xAxis.textColor = Color.parseColor("#999999")
+            xAxis.valueFormatter = IndexAxisValueFormatter(labels)
+            xAxis.granularity = 1f
             axisLeft.setDrawGridLines(true)
             axisLeft.textColor = Color.parseColor("#999999")
             axisRight.isEnabled = false
@@ -287,7 +407,7 @@ class AnalyticsFragment : Fragment() {
             params.height = resources.getDimensionPixelSize(R.dimen.heatmap_cell_size)
             params.columnSpec = android.widget.GridLayout.spec(i, 1f)
             emptyView.layoutParams = params
-            binding.heatmapGrid.addView(emptyView)https://github.com/tilak-star308/ExpenseSense
+            binding.heatmapGrid.addView(emptyView)
         }
 
         for (day in 1..daysInMonth) {

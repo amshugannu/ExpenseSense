@@ -17,6 +17,10 @@ class TransactionAdapter(
     private val onItemClick: (Transaction) -> Unit
 ) : RecyclerView.Adapter<TransactionAdapter.TransactionViewHolder>() {
 
+    // --- Compact List Structure Logic ---
+    // Achieving a sleek, data-rich but space-efficient UI. Each item is inflated
+    // from item_transaction.xml which uses minimal padding and horizontal alignment.
+
     fun updateCardMap(newMap: Map<String, String>) {
         cardDisplayMap = newMap
         notifyDataSetChanged()
@@ -49,14 +53,21 @@ class TransactionAdapter(
         val record = records[position]
         
         holder.tvTitle.text = record.title
-        holder.tvAmount.text = "₹%.2f".format(record.amount)
-        
+        val amountText = if (record.transactionType == Transaction.TYPE_INCOME) {
+            holder.tvAmount.setTextColor(android.graphics.Color.parseColor("#43A047")) // Green
+            "+₹%.2f".format(record.amount)
+        } else {
+            holder.tvAmount.setTextColor(android.graphics.Color.parseColor("#E53935")) // Red
+            "-₹%.2f".format(record.amount)
+        }
+        holder.tvAmount.text = amountText
+
         val formattedPayment = if ((record.paymentMethod == "Credit Card" || record.paymentMethod == "Debit Card") 
                                     && record.referenceId != null 
                                     && cardDisplayMap.containsKey(record.referenceId)) {
             cardDisplayMap[record.referenceId]
-        } else if (!record.referenceId.isNullOrBlank() && record.referenceId != record.paymentMethod) {
-            if (record.paymentMethod != "Cash") "${record.paymentMethod} • ${record.referenceId}" else record.referenceId
+        } else if (!record.referenceId.isNullOrBlank() && record.referenceId != record.paymentMethod && record.paymentMethod != "Cash") {
+            "${record.paymentMethod} • ${record.referenceId}"
         } else {
             record.paymentMethod
         }

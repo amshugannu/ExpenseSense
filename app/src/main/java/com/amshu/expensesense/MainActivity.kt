@@ -249,7 +249,7 @@ class MainActivity : AppCompatActivity() {
             val client = OkHttpClient()
             val mediaType = "application/json; charset=utf-8".toMediaType()
             
-            val prompt = "Extract data from this receipt text and return ONLY a JSON object with keys: vendor (String), total_amount (Number), date (YYYY-MM-DD), and category (Groceries, Dinner, Drinks, Travel, Fuel, Shopping, Bills, Subscriptions, Other).\n\nReceipt Text: $rawText"
+            val prompt = "Extract data from this receipt text and return ONLY a JSON object with keys: vendor (String), total_amount (Number), date (YYYY-MM-DD), and category (Groceries, Food, Drinks, Travel, Fuel, Shopping, Bills, Subscriptions, Other).\n\nReceipt Text: $rawText"
             
             val apiKey = BuildConfig.GEMINI_API_KEY
             val jsonBody = JSONObject().apply {
@@ -355,6 +355,8 @@ class MainActivity : AppCompatActivity() {
 
 
 
+    // --- Bottom Navigation Switching Logic ---
+    // Home screen uses a 5-item menu (including a middle placeholder for the FAB).
     private fun applyHomeNav() {
         if (bottomNavigationView.menu.size() != 5) {
             val currentId = bottomNavigationView.selectedItemId
@@ -387,6 +389,7 @@ class MainActivity : AppCompatActivity() {
         showFab()
     }
 
+    // Switches to a 4-item menu for other tabs where the FAB is hidden.
     private fun applyNormalNav() {
         if (bottomNavigationView.menu.size() != 4) {
             bottomNavigationView.menu.clear()

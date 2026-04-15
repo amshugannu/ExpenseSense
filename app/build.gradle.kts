@@ -117,4 +117,5 @@ dependencies {
     
     // PDF Processing
     implementation(libs.pdfbox.android)
+    implementation(libs.gson)
 }

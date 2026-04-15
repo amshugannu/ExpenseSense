@@ -56,19 +56,34 @@
             app:layout_constraintStart_toStartOf="@id/ivCardBg"
             tools:text="CARD HOLDER" />
 
-        <!-- Balance: Bottom-right -->
-        <TextView
-            android:id="@+id/tvBalanceDisplay"
+        <!-- Balance: Top-right relative to logo -->
+        <LinearLayout
+            android:id="@+id/layoutBalance"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginEnd="12dp"
-            android:layout_marginBottom="28dp"
-            android:textColor="#FFFFFF"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            app:layout_constraintBottom_toBottomOf="@id/ivCardBg"
-            app:layout_constraintEnd_toStartOf="@id/visaLogoAnchor"
-            tools:text="₹ 0.00" />
+            android:layout_marginBottom="6dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            app:layout_constraintBottom_toTopOf="@id/visaLogoAnchor"
+            app:layout_constraintEnd_toEndOf="@id/visaLogoAnchor">
+
+            <TextView
+                android:id="@+id/tvBalanceDisplay"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                tools:text="₹ 0.00" />
+
+            <ImageView
+                android:id="@+id/ivEyeToggle"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginStart="6dp"
+                android:src="@drawable/ic_eye_visible"
+                app:tint="#FFFFFF" />
+        </LinearLayout>
 
         <!-- Logo Anchor -->
         <View

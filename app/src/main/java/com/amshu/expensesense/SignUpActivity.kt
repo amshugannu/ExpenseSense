@@ -80,6 +80,10 @@ class SignUpActivity : AppCompatActivity() {
             auth.createUserWithEmailAndPassword(email, password)
                 .addOnCompleteListener { task ->
                     if (task.isSuccessful) {
+                        // Save name to SharedPreferences for Home screen greeting
+                        val prefs = getSharedPreferences("ExpenseSensePrefs", MODE_PRIVATE)
+                        prefs.edit().putString("user_full_name", fullName).apply()
+
                         val user = auth.currentUser
                         user?.sendEmailVerification()?.addOnCompleteListener {
                             Toast.makeText(this, "Verification email sent. Please check your inbox.", Toast.LENGTH_SHORT).show()

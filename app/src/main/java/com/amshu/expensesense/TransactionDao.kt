@@ -17,8 +17,8 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY timestamp DESC")
     fun getAllTransactions(): List<Transaction>
 
-    @Query("SELECT * FROM transactions WHERE timestamp BETWEEN :startTime AND :endTime ORDER BY amount DESC LIMIT :limit")
-    fun getTopSpending(startTime: Long, endTime: Long, limit: Int): List<Transaction>
+    @Query("SELECT * FROM transactions WHERE timestamp BETWEEN :startTime AND :endTime AND transactionType = :type ORDER BY amount DESC LIMIT :limit")
+    fun getTopSpending(startTime: Long, endTime: Long, type: String, limit: Int): List<Transaction>
 
     @Query("SELECT * FROM transactions WHERE timestamp BETWEEN :startTime AND :endTime")
     fun getTransactionsInRange(startTime: Long, endTime: Long): List<Transaction>

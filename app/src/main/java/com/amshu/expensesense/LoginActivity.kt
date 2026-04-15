@@ -175,6 +175,11 @@ class LoginActivity : AppCompatActivity() {
         android.util.Log.d("FLOW_DEBUG", "------ APP START AFTER LOGIN ------")
         android.util.Log.d("FLOW_DEBUG", "Starting initial sync for user: $username")
 
+        // Save user name for Home screen greeting
+        val name = user.displayName ?: user.email?.substringBefore("@")?.replaceFirstChar { it.uppercase() } ?: "User"
+        val prefs = getSharedPreferences("ExpenseSensePrefs", MODE_PRIVATE)
+        prefs.edit().putString("user_full_name", name).apply()
+
         Thread {
             val db = AppDatabase.getDatabase(this@LoginActivity)
             val isLocalDbEmpty = db.accountDao().getAllAccounts().isEmpty()

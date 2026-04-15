@@ -43,19 +43,22 @@
         </activity>
         <activity
             android:name=".MainActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".EmailVerificationActivity"
             android:exported="false" />
         <activity
             android:name=".AddExpenseActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".CategorySelectionActivity"
             android:exported="false" />
         <activity
             android:name=".AddCardActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
         <activity
             android:name=".ScanCardActivity"
             android:exported="false"
@@ -69,6 +72,23 @@
         <activity
             android:name=".TransactionDetailsActivity"
             android:exported="false" />
+        <activity
+            android:name=".AiInsightsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".BudgetDetailsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
+        <activity
+            android:name=".CategoryBudgetActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
+            android:name=".PrivacySettingsActivity"
+            android:exported="false"
+            android:screenOrientation="portrait" />
     </application>
 
 </manifest>

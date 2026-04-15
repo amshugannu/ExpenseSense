@@ -338,7 +338,7 @@ class AddExpenseActivity : AppCompatActivity() {
             else -> "Cash"
         }
 
-        val referenceId = spinnerDynamic.selectedItem?.toString()
+        val referenceId = if (paymentMethod == "Cash") null else spinnerDynamic.selectedItem?.toString()
         if (paymentMethod != "Cash" && referenceId == null) {
             Toast.makeText(this, "Please select a ${tvSelectorLabel.text}", Toast.LENGTH_SHORT).show()
             return

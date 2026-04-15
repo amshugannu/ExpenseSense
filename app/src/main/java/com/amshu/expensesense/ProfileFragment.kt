@@ -19,6 +19,9 @@ import coil.transform.CircleCropTransformation
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.FirebaseDatabase
+import java.text.SimpleDateFormat
+import java.util.*
 
 class ProfileFragment : Fragment() {
 
@@ -27,7 +30,7 @@ class ProfileFragment : Fragment() {
     private lateinit var tvHandle: TextView
     private lateinit var btnEditPhoto: ImageButton
     private lateinit var btnLogout: Button
-
+    
     private lateinit var userProfileDao: UserProfileDao
     private val auth = FirebaseAuth.getInstance()
     // We still keep auth for user identity, but skip Firebase Storage/DB for the image
@@ -57,6 +60,14 @@ class ProfileFragment : Fragment() {
 
         btnEditPhoto.setOnClickListener {
             pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
+
+        view.findViewById<View>(R.id.btnCustomizeCategoryBudget).setOnClickListener {
+            startActivity(Intent(requireContext(), CategoryBudgetActivity::class.java))
+        }
+
+        view.findViewById<View>(R.id.btnDataPrivacy).setOnClickListener {
+            startActivity(Intent(requireContext(), PrivacySettingsActivity::class.java))
         }
 
         btnLogout.setOnClickListener {

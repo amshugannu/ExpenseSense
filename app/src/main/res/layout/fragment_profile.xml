@@ -240,9 +240,11 @@
 
             <!-- Data and Privacy -->
             <RelativeLayout
+                android:id="@+id/btnDataPrivacy"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:padding="20dp">
+                android:padding="20dp"
+                android:background="?attr/selectableItemBackground">
                 <ImageView
                     android:id="@+id/iconPrivacy"
                     android:layout_width="48dp"
@@ -259,9 +261,51 @@
                     android:textColor="#1A1A2E"
                     android:textSize="18sp"
                     android:textStyle="bold" />
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/ic_back_arrow"
+                    android:rotation="180"
+                    app:tint="#DDDDDD" />
             </RelativeLayout>
 
-            <!-- Logout (kept from previous version but styled better) -->
+            <!-- Budget Customization -->
+            <RelativeLayout
+                android:id="@+id/btnCustomizeCategoryBudget"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:padding="20dp"
+                android:background="?attr/selectableItemBackground">
+                <ImageView
+                    android:id="@+id/iconBudget"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:padding="10dp"
+                    android:src="@drawable/ic_wallet"
+                    app:tint="#2ABFBF" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_toEndOf="@id/iconBudget"
+                    android:layout_marginStart="16dp"
+                    android:layout_centerVertical="true"
+                    android:text="Budget Customization"
+                    android:textColor="#1A1A2E"
+                    android:textSize="18sp"
+                    android:textStyle="bold" />
+                <ImageView
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_alignParentEnd="true"
+                    android:layout_centerVertical="true"
+                    android:src="@drawable/ic_back_arrow"
+                    android:rotation="180"
+                    app:tint="#DDDDDD" />
+            </RelativeLayout>
+
+            <!-- Logout -->
             <Button
                 android:id="@+id/btnLogout"
                 android:layout_width="match_parent"
