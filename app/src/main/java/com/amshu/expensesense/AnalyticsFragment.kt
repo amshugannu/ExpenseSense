@@ -298,7 +298,6 @@ class AnalyticsFragment : Fragment() {
                 }
             }
         }
-
         val dataSet = LineDataSet(entries, "${currentTimeRange} Spending")
         val themeColor = if (selectedType == Transaction.TYPE_INCOME) "#43A047" else "#5B4CF5"
         dataSet.color = Color.parseColor(themeColor)

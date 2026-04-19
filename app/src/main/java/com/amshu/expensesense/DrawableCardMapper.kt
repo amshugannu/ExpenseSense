@@ -55,6 +55,87 @@ object DrawableCardMapper {
         CardOption("ICICI Platinum Chip CC", "iciciplatinumchipcc")
     )
 
+    private val bobSpecialDebit = listOf(
+        CardOption("Baroda Sapphire HIM DC", "barodasapphirehimdc"),
+        CardOption("Baroda Sapphire HER DC", "barodasapphireherdc"),
+        CardOption("Baroda Platinum DC", "barodaplatinumdc"),
+        CardOption("Baroda Vyapaar DC", "barodavyapaardc"),
+        CardOption("Baroda Visa Classic DC", "barodavisaclassicdc"),
+        CardOption("Baroda Classic DC", "barodaclassicdc")
+    )
+
+    private val bobSpecialCredit = listOf(
+        CardOption("BOB Card Premier CC", "bobcardpremiercc"),
+        CardOption("BOB Card Vikram CC", "bobcardvikramcc"),
+        CardOption("BOB Card Select CC", "bobcardselectcc"),
+        CardOption("HPCL Energie BOB Card CC", "hpclenergiebobcardcc"),
+        CardOption("BOB Card Easy CC", "bobcardeasycc")
+    )
+
+    private val sbiSpecialDebit = listOf(
+        CardOption("SBI Platinum RuPay Select DC", "sbiplatinumrepupayselectdc"),
+        CardOption("SBI Virtual Global DC", "sbivirtualgobaldc"),
+        CardOption("SBI Global DC", "sbigobaldc"),
+        CardOption("SBI RuPay PMJDY DC", "sbirupaypmjdydc"),
+        CardOption("SBI Mumbai Metro Smart DC", "sbimumbaimetrosmartdc")
+    )
+
+    private val sbiSpecialCredit = listOf(
+        CardOption("SBI Pulse CC", "sbiplusecc"),
+        CardOption("SBI Elite CC", "sbielitecc"),
+        CardOption("SBI Prime CC", "sbiprimecc"),
+        CardOption("BPCL SBI CC", "bpclsbicc"),
+        CardOption("SBI SimplySave CC", "sbisimplysavecc")
+    )
+
+    private val kotakSpecialDebit = listOf(
+        CardOption("Kotak Everyday DC", "kotakeverydaydc"),
+        CardOption("Kotak 811 DC", "kotak811dc"),
+        CardOption("Kotak My Junior DC", "kotakmyjuniordc"),
+        CardOption("Kotak RuPay DC", "kotakrupaydc"),
+        CardOption("Kotak PayShopMore DC", "kotakpayshopmoredc")
+    )
+
+    private val kotakSpecialCredit = listOf(
+        CardOption("Kotak League CC", "kotakleaguecc"),
+        CardOption("Kotak IndianOil CC", "kotakindianoilcc"),
+        CardOption("Kotak PVR INOX CC", "kotakpvrinoxcc"),
+        CardOption("Kotak Myntra CC", "kotakmyntracc"),
+        CardOption("Kotak Mojo Platinum CC", "kotakmojoplatinumcc")
+    )
+
+    private val unionSpecialDebit = listOf(
+        CardOption("Union RuPay DC", "unionrupaydc"),
+        CardOption("Union Visa Signature DC", "unionvisasignaturedc"),
+        CardOption("Union PMJDY DC", "unionpmjdydc"),
+        CardOption("Union Platinum DC", "unionplatinundc"),
+        CardOption("Union Classic DC", "unionclassicdc")
+    )
+
+    private val unionSpecialCredit = listOf(
+        CardOption("Union Visa Signature CC", "unionvisasignaturecc"),
+        CardOption("Union Visa Platinum CC", "unionvisaplatinumcc"),
+        CardOption("Union Divaa CC", "uniondivaacc"),
+        CardOption("Union RuPay Select CC", "unionrupayselectcc"),
+        CardOption("Union RuPay Platinum CC", "unionrupayplatinumcc")
+    )
+
+    private val hdfcSpecialDebit = listOf(
+        CardOption("HDFC Millennia DC", "hdfcmillenniadc"),
+        CardOption("HDFC Platinum DC", "hdfcplatinumdc"),
+        CardOption("HDFC Moneyback DC", "hdfcmoneybackdc"),
+        CardOption("HDFC Women Advantage DC", "hdfcwomenadvantagedc"),
+        CardOption("HDFC EasyShop Platinum DC", "hdfceasyshopplatinumdc")
+    )
+
+    private val hdfcSpecialCredit = listOf(
+        CardOption("HDFC Regalia Gold CC", "hdfcregaliagoldcc"),
+        CardOption("HDFC Shoppers Stop CC", "hdfcshoppersstopcc"),
+        CardOption("HDFC Swiggy CC", "hdfcswiggycc"),
+        CardOption("HDFC Freedom CC", "hdfcfreedomcc"),
+        CardOption("HDFC IndianOil CC", "hdfcindianoilcc")
+    )
+
     /**
      * Returns the list of [CardOption] for a given [bank] display name and
      * [cardType] ("Debit" or "Credit"). Always appends "Other Card" at the end.
@@ -65,17 +146,42 @@ object DrawableCardMapper {
         val result = mutableListOf<CardOption>()
 
         if (bankKey != null) {
-            // Generate numbered cards 1-5 (except for ICICI Bank which has specific names now)
-            if (bankKey != "icici") {
+            // Generate numbered cards 1-5 (except for banks with specific named cards)
+            val specificBanks = listOf("icici", "sbi", "bob", "kotak", "union", "hdfc")
+            if (bankKey !in specificBanks) {
                 for (i in 1..5) {
                     val drawable = "${bankKey}${typeKey}card$i"
                     val label = "${bank} ${if (cardType == "Debit") "Debit" else "Credit"} Card $i"
                     result.add(CardOption(label, drawable))
                 }
             } else {
-                // Add specific ICICI cards
-                if (cardType == "Debit") result.addAll(iciciSpecialDebit)
-                else result.addAll(iciciSpecialCredit)
+                // Add specific cards for selected banks
+                when (bankKey) {
+                    "icici" -> {
+                        if (cardType == "Debit") result.addAll(iciciSpecialDebit)
+                        else result.addAll(iciciSpecialCredit)
+                    }
+                    "sbi" -> {
+                        if (cardType == "Debit") result.addAll(sbiSpecialDebit)
+                        else result.addAll(sbiSpecialCredit)
+                    }
+                    "bob" -> {
+                        if (cardType == "Debit") result.addAll(bobSpecialDebit)
+                        else result.addAll(bobSpecialCredit)
+                    }
+                    "kotak" -> {
+                        if (cardType == "Debit") result.addAll(kotakSpecialDebit)
+                        else result.addAll(kotakSpecialCredit)
+                    }
+                    "union" -> {
+                        if (cardType == "Debit") result.addAll(unionSpecialDebit)
+                        else result.addAll(unionSpecialCredit)
+                    }
+                    "hdfc" -> {
+                        if (cardType == "Debit") result.addAll(hdfcSpecialDebit)
+                        else result.addAll(hdfcSpecialCredit)
+                    }
+                }
             }
 
             // Add special Axis cards
